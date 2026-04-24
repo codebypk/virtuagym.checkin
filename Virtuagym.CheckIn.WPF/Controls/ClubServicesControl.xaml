@@ -1,0 +1,51 @@
+<UserControl x:Class="Virtuagym.CheckIn.WPF.Controls.ClubServicesControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="600" d:DesignWidth="900" Background="White">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Info-Text -->
+        <TextBlock Grid.Row="0" TextWrapping="Wrap" Margin="0,0,0,10"
+                   x:Name="txtDescription"
+                   Text="Verwalten Sie hier die Club-Services, die aus der club_services.json geladen werden. Diese Services werden f&#252;r die Credit-Pr&#252;fung bei Check-ins verwendet."/>
+
+        <!-- DataGrid -->
+        <DataGrid x:Name="dataGridClubServices" Grid.Row="1" AutoGenerateColumns="False" 
+                  SelectionMode="Single" CanUserAddRows="False"
+                  Margin="0,0,0,10">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Club-ID" Binding="{Binding club_id}" Width="80" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Service-ID" Binding="{Binding service_id}" Width="*" IsReadOnly="True"/>
+                <DataGridTextColumn Header="Servicename" Binding="{Binding servicename}" Width="*"/>
+                <DataGridTextColumn Header="Min. Credits" Binding="{Binding min_credits}" Width="100"/>
+                <DataGridCheckBoxColumn Header="Aktiv" Binding="{Binding isActive}" Width="60"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal">
+            <Button x:Name="btnAddService" Content="Service hinzuf&#252;gen" Width="140" Height="28" Margin="0,0,10,0"
+                    Click="btnAddService_Click"
+                    ToolTip="F&#252;gt einen neuen Club-Service hinzu."/>
+            <Button x:Name="btnEditService" Content="Bearbeiten" Width="100" Height="28" Margin="0,0,10,0"
+                    Click="btnEditService_Click"
+                    ToolTip="Bearbeitet den ausgew&#228;hlten Service."/>
+            <Button x:Name="btnDeleteService" Content="L&#246;schen" Width="100" Height="28" Margin="0,0,10,0"
+                    Click="btnDeleteService_Click"
+                    ToolTip="L&#246;scht den ausgew&#228;hlten Service."/>
+            <Button x:Name="btnReloadServices" Content="Neu laden" Width="100" Height="28" Margin="0,0,10,0"
+                    Click="btnReloadServices_Click"
+                    ToolTip="L&#228;dt die Services aus der club_services.json neu."/>
+            <TextBlock x:Name="txtServiceStatus" VerticalAlignment="Center" Margin="10,0,0,0" 
+                       Foreground="Gray" TextWrapping="Wrap"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

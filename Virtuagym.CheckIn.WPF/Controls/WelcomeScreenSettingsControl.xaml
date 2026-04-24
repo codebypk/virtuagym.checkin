@@ -1,0 +1,202 @@
+<UserControl x:Class="Virtuagym.CheckIn.WPF.Controls.WelcomeScreenSettingsControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:local="clr-namespace:Virtuagym.CheckIn.WPF"
+             mc:Ignorable="d"
+             d:DesignHeight="450" d:DesignWidth="800">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Background="White">
+        <StackPanel Margin="10">
+            <!-- Anzeige -->
+            <GroupBox x:Name="grpDisplay" Header="Anzeige" Margin="0,0,0,10">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock x:Name="lblWelcomeEnabled" Grid.Row="0" Grid.Column="0" Text="Welcome Screen aktivieren:" VerticalAlignment="Center" Margin="0,5"/>
+                    <CheckBox x:Name="chkWelcomeScreenEnabled" Grid.Row="0" Grid.Column="1"
+                              VerticalAlignment="Center" Margin="0,5"
+                              ToolTip="Zeigt ein Fullscreen-Fenster mit Mitgliedername und Avatar bei jedem Check-in an."/>
+
+                    <TextBlock x:Name="lblShowClubLogo" Grid.Row="1" Grid.Column="0" Text="Club-Logo anzeigen:" VerticalAlignment="Center" Margin="0,5"/>
+                    <CheckBox x:Name="chkShowClubLogo" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Margin="0,5"
+                              ToolTip="Zeigt das Club-Logo oben links auf dem Welcome Screen an."/>
+
+                    <TextBlock x:Name="lblClubLogo" Grid.Row="2" Grid.Column="0" Text="Club-Logo:" VerticalAlignment="Center" Margin="0,5"/>
+                    <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,5">
+                        <TextBox x:Name="txtClubLogoPath" Width="400" VerticalAlignment="Center" IsReadOnly="True"
+                                 ToolTip="Pfad zum Club-Logo (Bilddatei) für den Welcome Screen."/>
+                        <Button x:Name="btnBrowseClubLogo" Content="..." Width="30" Height="22" Margin="5,0,0,0"
+                                Click="btnBrowseClubLogo_Click" ToolTip="Club-Logo auswählen"/>
+                        <Button x:Name="btnClearClubLogo" Content="&#x2715;" Width="22" Height="22" Margin="5,0,0,0"
+                                Click="btnClearClubLogo_Click" ToolTip="Club-Logo entfernen"/>
+                    </StackPanel>
+
+                    <TextBlock x:Name="lblMonitorLabel" Grid.Row="3" Grid.Column="0" Text="Monitor:" VerticalAlignment="Center" Margin="0,5"/>
+                    <ComboBox x:Name="cmbWelcomeScreenMonitor" Grid.Row="3" Grid.Column="1" Width="300" HorizontalAlignment="Left" Margin="0,5"
+                              ToolTip="Bildschirm auf dem das Welcome-Fenster angezeigt wird."/>
+
+                    <TextBlock x:Name="lblShowQrCameraPreview" Grid.Row="4" Grid.Column="0" Text="QR-Kamera-Vorschau:" VerticalAlignment="Center" Margin="0,5"/>
+                    <CheckBox x:Name="chkShowQrCameraPreview" Grid.Row="4" Grid.Column="1" VerticalAlignment="Center" Margin="0,5"
+                              ToolTip="Zeigt eine Kamera-Vorschau auf dem Welcome Screen an, wenn ein QR-Code-Reader aktiv ist. Im Debug-Modus immer sichtbar."/>
+                </Grid>
+            </GroupBox>
+
+            <!-- Sounds -->
+            <GroupBox x:Name="grpSounds" Header="Sounds" Margin="0,0,0,10">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock x:Name="lblSoundSuccess" Grid.Row="0" Grid.Column="0" Text="Check-in erfolgreich:" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtSoundCheckinSuccess" Grid.Row="0" Grid.Column="1" Margin="0,5"
+                             ToolTip="Pfad zur WAV-Datei bei erfolgreichem Check-in (relativ zum Anwendungsverzeichnis)."/>
+                    <Button Grid.Row="0" Grid.Column="2" Content="..." Width="30" Height="22" Margin="5,5,0,5"
+                            Click="btnBrowseSoundCheckinSuccess_Click" ToolTip="Sound-Datei auswählen"/>
+
+                    <TextBlock x:Name="lblSoundWarn" Grid.Row="1" Grid.Column="0" Text="Check-in Warnung:" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtSoundCheckinWarn" Grid.Row="1" Grid.Column="1" Margin="0,5"
+                             ToolTip="Pfad zur WAV-Datei bei Check-in mit Warnung (relativ zum Anwendungsverzeichnis)."/>
+                    <Button Grid.Row="1" Grid.Column="2" Content="..." Width="30" Height="22" Margin="5,5,0,5"
+                            Click="btnBrowseSoundCheckinWarn_Click" ToolTip="Sound-Datei auswählen"/>
+
+                    <TextBlock x:Name="lblSoundError" Grid.Row="2" Grid.Column="0" Text="Check-in Fehler:" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtSoundCheckinError" Grid.Row="2" Grid.Column="1" Margin="0,5"
+                             ToolTip="Pfad zur WAV-Datei bei fehlgeschlagenem Check-in (relativ zum Anwendungsverzeichnis)."/>
+                    <Button Grid.Row="2" Grid.Column="2" Content="..." Width="30" Height="22" Margin="5,5,0,5"
+                            Click="btnBrowseSoundCheckinError_Click" ToolTip="Sound-Datei auswählen"/>
+
+                    <TextBlock x:Name="lblSoundDoubleScan" Grid.Row="3" Grid.Column="0" Text="Doppelscan (bereits angemeldet):" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtSoundCheckinDoubleScan" Grid.Row="3" Grid.Column="1" Margin="0,5"
+                             ToolTip="Pfad zur WAV-Datei wenn ein bereits angemeldeter Benutzer erneut scannt (relativ zum Anwendungsverzeichnis)."/>
+                    <Button Grid.Row="3" Grid.Column="2" Content="..." Width="30" Height="22" Margin="5,5,0,5"
+                            Click="btnBrowseSoundCheckinDoubleScan_Click" ToolTip="Sound-Datei auswählen"/>
+                </Grid>
+            </GroupBox>
+
+            <!-- Texte / Nachrichten -->
+            <GroupBox x:Name="grpMessages" Header="Texte / Nachrichten" Margin="0,0,0,10">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock x:Name="lblIdleHintsHeader" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" 
+                               Text="Hinweistexte im Idle-Zustand (je nach konfigurierten Eingabeger&#228;ten):" 
+                               FontWeight="SemiBold" Margin="0,0,0,5"/>
+
+                    <TextBlock x:Name="lblIdleHintBoth" Grid.Row="1" Grid.Column="0" Text="RFID + QR-Code:" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtIdleHintRfidAndQrCode" Grid.Row="1" Grid.Column="1" Margin="0,5"
+                             ToolTip="Hinweistext wenn sowohl RFID-Reader als auch QR-Code-Kamera konfiguriert sind."/>
+
+                    <TextBlock x:Name="lblIdleHintQrOnly" Grid.Row="2" Grid.Column="0" Text="Nur QR-Code:" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtIdleHintQrCode" Grid.Row="2" Grid.Column="1" Margin="0,5"
+                             ToolTip="Hinweistext wenn nur QR-Code-Kameras konfiguriert sind."/>
+
+                    <TextBlock x:Name="lblIdleHintRfidOnly" Grid.Row="3" Grid.Column="0" Text="Nur RFID:" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtIdleHintRfid" Grid.Row="3" Grid.Column="1" Margin="0,5"
+                             ToolTip="Hinweistext wenn nur RFID-Reader konfiguriert sind."/>
+
+                    <TextBlock x:Name="lblCheckinSuccessText" Grid.Row="4" Grid.Column="0" Text="Check-in erfolgreich:" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtCheckinSuccessText" Grid.Row="4" Grid.Column="1" Margin="0,5"
+                             ToolTip="Anzeige bei erfolgreichem Check-in ohne Server-Nachricht."/>
+
+                    <TextBlock x:Name="lblCheckinNotFound" Grid.Row="5" Grid.Column="0" Text="Nicht gefunden:" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtCheckinNotFoundText" Grid.Row="5" Grid.Column="1" Margin="0,5"
+                             ToolTip="Anzeige wenn das Mitglied nicht gefunden wurde."/>
+
+                    <TextBlock x:Name="lblCheckinUnknownErr" Grid.Row="6" Grid.Column="0" Text="Unbekannter Fehler:" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtCheckinUnknownErrorText" Grid.Row="6" Grid.Column="1" Margin="0,5"
+                             ToolTip="Anzeige bei unbekanntem Fehler ohne Server-Nachricht."/>
+                </Grid>
+            </GroupBox>
+
+            <!-- API-Nachrichten -->
+            <GroupBox x:Name="grpApiMessages" Header="API-Nachrichten" Margin="0,0,0,10">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock x:Name="lblApiMsgHeader" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" 
+                               Text="Nachrichtentexte der Virtuagym-API (Platzhalter {0} wird ersetzt):" 
+                               FontWeight="SemiBold" Margin="0,0,0,5"/>
+
+                    <TextBlock x:Name="lblMsgMemberNotFound" Grid.Row="1" Grid.Column="0" Text="Mitglied nicht gefunden:" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtApiMsgMemberNotFoundByRfid" Grid.Row="1" Grid.Column="1" Margin="0,5"
+                             ToolTip="Nachricht wenn kein Mitglied mit diesem RFID-Tag gefunden wurde. {0} = RFID-Tag."/>
+
+                    <TextBlock x:Name="lblMsgDoubleScan" Grid.Row="2" Grid.Column="0" Text="Doppelscan blockiert:" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtApiMsgDoubleScanBlocked" Grid.Row="2" Grid.Column="1" Margin="0,5"
+                             ToolTip="Nachricht bei Doppelscan-Schutz. {0} = Schwellwert-Anzeige (z.B. '1 Minute(n)')."/>
+
+                    <TextBlock x:Name="lblMsgCheckinSuccess" Grid.Row="4" Grid.Column="0" Text="Check-in erfolgreich:" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtApiMsgCheckinSuccess" Grid.Row="4" Grid.Column="1" Margin="0,5"
+                             ToolTip="Nachricht bei erfolgreicher Anmeldung. {0} = Mitgliedsname."/>
+
+                    <TextBlock x:Name="lblMsgCheckoutSuccess" Grid.Row="5" Grid.Column="0" Text="Check-out erfolgreich:" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtApiMsgCheckoutSuccess" Grid.Row="5" Grid.Column="1" Margin="0,5"
+                             ToolTip="Nachricht bei erfolgreicher Abmeldung. {0} = Mitgliedsname."/>
+
+                    <TextBlock x:Name="lblMsgCheckinFailed" Grid.Row="6" Grid.Column="0" Text="Check-in fehlgeschlagen:" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtApiMsgCheckinFailed" Grid.Row="6" Grid.Column="1" Margin="0,5"
+                             ToolTip="Nachricht wenn der Check-in fehlschl&#228;gt."/>
+
+                    <TextBlock x:Name="lblMsgCheckoutFailed" Grid.Row="7" Grid.Column="0" Text="Check-out fehlgeschlagen:" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtApiMsgCheckoutFailed" Grid.Row="7" Grid.Column="1" Margin="0,5"
+                             ToolTip="Nachricht wenn der Check-out fehlschl&#228;gt."/>
+
+                    <TextBlock x:Name="lblMsgMemberNotActive" Grid.Row="8" Grid.Column="0" Text="Mitglied nicht aktiv:" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtApiMsgMemberNotActive" Grid.Row="8" Grid.Column="1" Margin="0,5"
+                             ToolTip="Nachricht wenn das Mitglied nicht aktiv ist. {0} = Mitgliedsname."/>
+
+                    <TextBlock x:Name="lblMsgInsufficientCredits" Grid.Row="9" Grid.Column="0" Text="Nicht gen&#252;gend Credits:" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtApiMsgInsufficientCredits" Grid.Row="9" Grid.Column="1" Margin="0,5"
+                             ToolTip="Nachricht wenn nicht gen&#252;gend Credits vorhanden sind. {0} = Service-Name."/>
+                </Grid>
+            </GroupBox>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

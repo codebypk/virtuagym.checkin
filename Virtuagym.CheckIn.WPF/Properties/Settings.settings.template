@@ -1,0 +1,150 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  ============================================================================
+  TEMPLATE – Copy this file to "Settings.settings" and fill in YOUR secret values.
+  Settings.settings is listed in .gitignore and will NOT be committed.
+  ============================================================================
+-->
+<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="VirtuagymMemberCheckIn.Properties" GeneratedClassName="Settings">
+  <Profiles />
+  <Settings>
+    <Setting Name="DebugMode" Type="System.Boolean" Scope="Application">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="VirtuagymApiKey" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">YOUR_VIRTUAGYM_API_KEY</Value>
+    </Setting>
+    <Setting Name="VirtuagymServerUrl" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">https://virtuagym.com/api/</Value>
+    </Setting>
+    <Setting Name="VirtuagymClubSecret" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">YOUR_VIRTUAGYM_CLUB_SECRET</Value>
+    </Setting>
+    <Setting Name="WelcomeScreenEnabled" Type="System.Boolean" Scope="Application">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="RepaitTimeInMs" Type="System.Int32" Scope="Application">
+      <Value Profile="(Default)">400</Value>
+    </Setting>
+    <Setting Name="WelcomeScreenMonitor" Type="System.Int32" Scope="Application">
+      <Value Profile="(Default)">1</Value>
+    </Setting>
+    <Setting Name="CheckinClientMappings" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">[]</Value>
+    </Setting>
+    <Setting Name="ShowClubLogo" Type="System.Boolean" Scope="Application">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="ClubLogoPath" Type="System.String" Scope="Application">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="MemberCheckinApiV0Key" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">YOUR_MEMBER_CHECKIN_API_KEY</Value>
+    </Setting>
+    <Setting Name="CacheSyncEnabled" Type="System.Boolean" Scope="Application">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="CacheSyncIntervalMinutes" Type="System.Int32" Scope="Application">
+      <Value Profile="(Default)">60</Value>
+    </Setting>
+    <Setting Name="SoundCheckinSuccess" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">Resources\sounds\login_succes.wav</Value>
+    </Setting>
+    <Setting Name="SoundCheckinWarn" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">Resources\sounds\notification.wav</Value>
+    </Setting>
+    <Setting Name="SoundCheckinError" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">Resources\sounds\error.wav</Value>
+    </Setting>
+    <Setting Name="SoundCheckinDoubleScan" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">Resources\sounds\login_try.wav</Value>
+    </Setting>
+    <Setting Name="AppLanguage" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">de</Value>
+    </Setting>
+    <Setting Name="IdleHintRfidAndQrCode" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">Bitte halten Sie Ihre Karte an das Lesegerät oder scannen Sie Ihren QR-Code</Value>
+    </Setting>
+    <Setting Name="IdleHintQrCode" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">Bitte scannen Sie Ihren QR-Code</Value>
+    </Setting>
+    <Setting Name="IdleHintRfid" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">Bitte halten Sie Ihre Karte an das Lesegerät</Value>
+    </Setting>
+    <Setting Name="CheckinSuccessText" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">Check-in erfolgreich</Value>
+    </Setting>
+    <Setting Name="CheckinNotFoundText" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">Nicht gefunden</Value>
+    </Setting>
+    <Setting Name="CheckinUnknownErrorText" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">Unbekannter Fehler</Value>
+    </Setting>
+    <Setting Name="ApiMsgMemberNotFoundByRfid" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">Es wurde kein Mitglied mit der Kartennummer „{0}" gefunden.</Value>
+    </Setting>
+    <Setting Name="ApiMsgDoubleScanBlocked" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">Der letzte Check-in liegt weniger als {0} zurück, der Check-out wird übersprungen.</Value>
+    </Setting>
+    <Setting Name="ApiMsgCheckinSuccess" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">{0} wurde eingecheckt.</Value>
+    </Setting>
+    <Setting Name="ApiMsgCheckoutSuccess" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">{0} wurde ausgecheckt.</Value>
+    </Setting>
+    <Setting Name="ApiMsgCheckinFailed" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">Check-in fehlgeschlagen.</Value>
+    </Setting>
+    <Setting Name="ApiMsgCheckoutFailed" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">Check-out fehlgeschlagen.</Value>
+    </Setting>
+    <Setting Name="ApiMsgInsufficientCredits" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">Nicht genügend Guthaben für „{0}".</Value>
+    </Setting>
+    <Setting Name="ApiMsgMemberNotActive" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">Das Mitglied „{0}" ist nicht aktiv.</Value>
+    </Setting>
+    <Setting Name="DuplicateTimeoutSeconds" Type="System.Int32" Scope="Application">
+      <Value Profile="(Default)">5</Value>
+    </Setting>
+    <Setting Name="WelcomeIdleTimeoutMs" Type="System.Int32" Scope="Application">
+      <Value Profile="(Default)">5000</Value>
+    </Setting>
+    <Setting Name="BackgroundRotationIntervalMs" Type="System.Int32" Scope="Application">
+      <Value Profile="(Default)">10000</Value>
+    </Setting>
+    <Setting Name="LogRetentionDays" Type="System.Int32" Scope="Application">
+      <Value Profile="(Default)">30</Value>
+    </Setting>
+    <Setting Name="ShowQrCameraPreviewOnWelcome" Type="System.Boolean" Scope="Application">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="ClearTransientMemberDataOnStartup" Type="System.Boolean" Scope="Application">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="CreditsCacheTtlMinutes" Type="System.Int32" Scope="Application">
+      <Value Profile="(Default)">60</Value>
+    </Setting>
+    <Setting Name="DefaultDoubleScanThresholdMs" Type="System.Int32" Scope="Application">
+      <Value Profile="(Default)">60000</Value>
+    </Setting>
+    <Setting Name="MemberCheckinApiV0Username" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">YOUR_CHECKIN_API_USERNAME</Value>
+    </Setting>
+    <Setting Name="MemberCheckinApiV0Password" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">YOUR_CHECKIN_API_PASSWORD</Value>
+    </Setting>
+    <Setting Name="VirtuagymProfileImageUrl" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">https://static.virtuagym.com/v29524004/thumb/userpic/m/</Value>
+    </Setting>
+    <Setting Name="JablotronApiUrl" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">https://api.jablonet.net/api/2.4</Value>
+    </Setting>
+    <Setting Name="JablotronApiUsername" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">YOUR_JABLOTRON_USERNAME</Value>
+    </Setting>
+    <Setting Name="JablotronApiPassword" Type="System.String" Scope="Application">
+      <Value Profile="(Default)">YOUR_JABLOTRON_PASSWORD</Value>
+    </Setting>
+  </Settings>
+</SettingsFile>

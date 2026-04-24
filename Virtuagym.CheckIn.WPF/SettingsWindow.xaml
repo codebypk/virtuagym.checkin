@@ -1,0 +1,123 @@
+<Window x:Class="Virtuagym.CheckIn.WPF.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Virtuagym.CheckIn.WPF"
+        xmlns:controls="clr-namespace:Virtuagym.CheckIn.WPF.Controls"
+        mc:Ignorable="d"
+        Title="Einstellungen" Height="885" Width="1011" MinHeight="500" MinWidth="900"
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip">
+    <Grid Margin="10">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="408*"/>
+            <ColumnDefinition Width="667*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Language / Debug bar -->
+        <Border Grid.Row="0" Grid.ColumnSpan="2" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Margin="0,0,0,5" Padding="0,0,0,5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <TextBlock x:Name="lblLanguage" Text="Application Language:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <ComboBox x:Name="cmbLanguage" Width="150" VerticalAlignment="Center"
+                              SelectionChanged="cmbLanguage_SelectionChanged"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Vertical">
+                    <!-- For General Settings -->
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <TabControl x:Name="tabControlMain" Grid.Row="1" SelectionChanged="tabControlMain_SelectionChanged" Grid.ColumnSpan="2">
+            <!-- Tab 1: Virtuagym Client -->
+            <TabItem x:Name="tabVirtuagymClient" Header="Virtuagym Client">
+                <TabControl Margin="5">
+
+                    <!-- Sub-Tab: Welcome Screen -->
+                    <TabItem x:Name="tabSubWelcomeScreen" Header="Welcome Screen">
+                        <controls:WelcomeScreenSettingsControl x:Name="welcomeScreenControl"/>
+                    </TabItem>
+
+                    <!-- Sub-Tab: API-Verbindung -->
+                    <TabItem x:Name="tabSubApiConnection" Header="API-Verbindung">
+                        <controls:ApiConnectionControl x:Name="apiConnectionControl"/>
+                    </TabItem>
+
+                    <!-- Sub-Tab: Checkin-Client Zuordnungen -->
+                    <TabItem x:Name="tabSubCheckinMappings" Header="Checkin-Client Zuordnungen">
+                        <controls:CheckinMappingsControl x:Name="checkinMappingsControl"/>
+                    </TabItem>
+
+                    <!-- Sub-Tab: Club Services -->
+                    <TabItem x:Name="tabSubClubServices" Header="Club Services">
+                        <controls:ClubServicesControl x:Name="clubServicesControl"/>
+                    </TabItem>
+
+                    <!-- Sub-Tab: Member-Tools -->
+                    <TabItem x:Name="tabSubMemberTools" Header="Member-Tools">
+                        <controls:MemberToolsControl x:Name="memberToolsControl"/>
+                    </TabItem>
+
+                </TabControl>
+            </TabItem>
+
+            <!-- Tab 2: Access Pass -->
+            <TabItem x:Name="tabAccessPass" Header="Access Pass">
+                <controls:AccessPassControl x:Name="accessPassControl"/>
+            </TabItem>
+
+            <!-- Tab 3: Jablotron Client -->
+            <TabItem x:Name="tabJablotronClient" Header="Jablotron Client">
+                <controls:JablotronClientControl x:Name="jablotronClientControl"/>
+            </TabItem>
+
+            <!-- Tab 4: Developer -->
+            <TabItem x:Name="tabDeveloper" Header="Developer">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Margin="5" Orientation="Vertical">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock x:Name="lblDebugMode" Text="Debug mode:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <CheckBox x:Name="chkDebugMode" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <TextBlock x:Name="lblClearTransientDataOnStartup" Text="Beim Start ServiceCredits/DeviceCheckinData leeren:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <CheckBox x:Name="chkClearTransientDataOnStartup" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <TabControl Grid.Row="1" Margin="5">
+                        <!-- Developer Sub-Tab: Simulation -->
+                        <TabItem x:Name="tabDeveloperSimulation" Header="Simulation">
+                            <controls:DeveloperSimulationControl x:Name="developerSimulationControl"/>
+                        </TabItem>
+
+                        <!-- Developer Sub-Tab: Jablotron Gate Test -->
+                        <TabItem x:Name="tabDeveloperJablotronGateTest" Header="Jablotron Gate Test">
+                            <controls:DeveloperJablotronGateTestControl x:Name="developerJablotronGateTestControl"/>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0" Grid.Column="1">
+            <TextBlock x:Name="lblRestartHint" Text="Hinweis: Änderungen erfordern einen Neustart der Anwendung." 
+                       Foreground="Orange" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,20,0"/>
+            <Button x:Name="btnSave" Content="Speichern" Width="100" Height="30" Margin="0,0,10,0" Click="btnSave_Click"/>
+            <Button x:Name="btnCancel" Content="Abbrechen" Width="100" Height="30" Click="btnCancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

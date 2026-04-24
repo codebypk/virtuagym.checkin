@@ -1,0 +1,153 @@
+<UserControl x:Class="Virtuagym.CheckIn.WPF.Controls.MemberToolsControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:local="clr-namespace:Virtuagym.CheckIn.WPF"
+             mc:Ignorable="d"
+             d:DesignHeight="450" d:DesignWidth="800" Background="White">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        
+        <!-- Mitglieder -->
+        <TabControl Grid.Row="1" Margin="0,0,0,10">
+            <!-- Sub-Tab: Member-Cache -->
+            <TabItem x:Name="devleoperSubTabMembersCache" Header="Member-Cache">
+                <Grid Margin="5">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Aktionen -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button x:Name="btnCacheLoad" Content="Cache laden" Width="120" Height="28" Margin="0,0,10,0" Click="btnCacheLoad_Click"
+                                ToolTip="L&#228;dt alle Eintr&#228;ge aus dem lokalen Member-Cache."/>
+                        <Button x:Name="btnCacheExportCsv" Content="CSV exportieren" Width="120" Height="28" Margin="0,0,10,0"
+                                IsEnabled="False" Click="btnCacheExportCsv_Click"/>
+                        <TextBlock x:Name="txtCacheLoadStatus" VerticalAlignment="Center" Foreground="Gray" FontSize="12"/>
+                    </StackPanel>
+
+                    <!-- Suchzeile -->
+                    <Grid Grid.Row="1" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox x:Name="txtCacheSearch" Grid.Column="0" Margin="0,0,10,0" VerticalContentAlignment="Center"
+                                 ToolTip="Suche nach Name, E-Mail, RFID-Tag oder Member-ID"
+                                 KeyDown="txtCacheSearch_KeyDown"/>
+                        <Button x:Name="btnCacheSearchClear" Grid.Column="1" Content="&#x2715;" Width="28" Height="28"
+                                Click="btnCacheSearchClear_Click" ToolTip="Suchfilter zur&#252;cksetzen"/>
+                    </Grid>
+
+                    <!-- DataGrid -->
+                    <DataGrid x:Name="dataGridCache" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True"
+                              SelectionMode="Single" Margin="0,0,0,8"
+                              EnableRowVirtualization="True"
+                              EnableColumnVirtualization="True"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True"
+                              ScrollViewer.VerticalScrollBarVisibility="Visible"
+                              ScrollViewer.HorizontalScrollBarVisibility="Visible"
+                              MouseDoubleClick="dataGridCache_MouseDoubleClick"
+                              SelectionChanged="dataGridCache_SelectionChanged">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Member-ID" Binding="{Binding MemberId}" Width="80"/>
+                            <DataGridTextColumn Header="Vorname" Binding="{Binding Firstname}" Width="*"/>
+                            <DataGridTextColumn Header="Nachname" Binding="{Binding Lastname}" Width="*"/>
+                            <DataGridTextColumn Header="E-Mail" Binding="{Binding Email}" Width="*"/>
+                            <DataGridTextColumn Header="RFID Tag" Binding="{Binding RfidTag}" Width="100"/>
+                            <DataGridCheckBoxColumn Header="Aktiv" Binding="{Binding Active}" Width="50"/>
+                            <DataGridCheckBoxColumn Header="Eingecheckt" Binding="{Binding IsCheckedIn, Mode=OneWay}" Width="80"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Aktionszeile -->
+                    <StackPanel Grid.Row="3" Orientation="Horizontal">
+                        <Button x:Name="btnCacheEditEntry" Content="Bearbeiten" Width="100" Height="28" Margin="0,0,10,0"
+                                Click="btnCacheEditEntry_Click"
+                                ToolTip="&#214;ffnet den ausgew&#228;hlten Cache-Eintrag zum Bearbeiten."/>
+                        <Button x:Name="btnCacheDeleteEntry" Content="L&#246;schen" Width="100" Height="28" Margin="0,0,10,0"
+                                Click="btnCacheDeleteEntry_Click"
+                                ToolTip="L&#246;scht den ausgew&#228;hlten Eintrag aus dem Cache."/>
+                        <TextBlock x:Name="txtCacheSearchStatus" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="Gray" FontSize="12"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- Sub-Tab: Mitglieder (Online) -->
+            <TabItem  x:Name="devleoperSubTabMembers" Header="Members (Online)">
+                <Grid Margin="5">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Aktionen -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button x:Name="btnGetMembers" Content="Mitglieder abrufen" Width="150" Height="28" Margin="0,0,10,0" Click="btnGetMembers_Click"/>
+                        <Button x:Name="btnExportMembersCsv" Content="CSV exportieren" Width="150" Height="28" Margin="0,0,10,0" IsEnabled="False" Click="btnExportMembersCsv_Click"/>
+                        <TextBlock x:Name="txtMembersLoadStatus" VerticalAlignment="Center" Foreground="Gray" FontSize="12"/>
+                    </StackPanel>
+
+                    <!-- Suchzeile -->
+                    <Grid Grid.Row="1" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox x:Name="txtMemberSearch" Grid.Column="0" Margin="0,0,10,0" VerticalContentAlignment="Center"
+                                 ToolTip="Suche nach Name, E-Mail, RFID-Tag oder Member-ID (filtert lokal in den geladenen Mitgliedern)"
+                                 KeyDown="txtMemberSearch_KeyDown"/>
+                        <Button x:Name="btnMemberSearchClear" Grid.Column="1" Content="✕" Width="28" Height="28"
+                                Click="btnMemberSearchClear_Click" ToolTip="Suchfilter zurücksetzen"/>
+                    </Grid>
+
+                    <!-- DataGrid -->
+                    <DataGrid x:Name="dataGridMembers" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True"
+                              SelectionMode="Single" Margin="0,0,0,8"
+                              EnableRowVirtualization="True"
+                              EnableColumnVirtualization="True"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True"
+                              ScrollViewer.VerticalScrollBarVisibility="Visible"
+                              ScrollViewer.HorizontalScrollBarVisibility="Visible"
+                              MouseDoubleClick="dataGridMembers_MouseDoubleClick"
+                              SelectionChanged="dataGridMembers_SelectionChanged">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="ID" Binding="{Binding member_id}" Width="60"/>
+                            <DataGridTextColumn Header="Vorname" Binding="{Binding firstname}" Width="*"/>
+                            <DataGridTextColumn Header="Nachname" Binding="{Binding lastname}" Width="*"/>
+                            <DataGridTextColumn Header="E-Mail" Binding="{Binding email}" Width="*"/>
+                            <DataGridTextColumn Header="RFID-Tag" Binding="{Binding rfid_tag}" Width="100"/>
+                            <DataGridCheckBoxColumn Header="Aktiv" Binding="{Binding active}" Width="50"/>
+                            <DataGridTextColumn Header="Mitglied seit" Binding="{Binding MemberSinceFormatted}" Width="130"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Aktionszeile -->
+                    <StackPanel Grid.Row="3" Orientation="Horizontal">
+                        <Button x:Name="btnMemberEdit" Content="Bearbeiten" Width="100" Height="28" Margin="0,0,10,0"
+                                Click="btnMemberEdit_Click"
+                                ToolTip="Öffnet das ausgewählte Mitglied zum Bearbeiten (Doppelklick geht auch)."/>
+                        <TextBlock x:Name="txtMemberSearchStatus" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="Gray" FontSize="12"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+
+        </TabControl>
+    </Grid>
+</UserControl>

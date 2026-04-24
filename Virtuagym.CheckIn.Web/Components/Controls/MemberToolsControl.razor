@@ -1,0 +1,444 @@
+@using Microsoft.Extensions.Options
+@using Virtuagym.CheckIn.Web.Models
+@using Virtuagym.CheckIn.Web.Services
+@using Virtuagym.CheckIn.Core.Services
+@using Virtuagym.API.Cache.Models
+@using Virtuagym.API.v1.Models
+@using Virtuagym.CheckIn.Core.Logic
+@using System.Text
+@inject IOptions<AppSettings> SettingsOptions
+@inject WebVirtuagymApiServiceFactory ApiFactory
+
+<div class="control-panel">
+    <h4>Developer – Virtuagym</h4>
+
+    <div class="sub-tabs">
+        <button class="sub-tab-btn @(_subTab == "cache" ? "active" : "")" @onclick='() => _subTab = "cache"'>Member-Cache</button>
+        <button class="sub-tab-btn @(_subTab == "online" ? "active" : "")" @onclick='() => _subTab = "online"'>Members (Online)</button>
+    </div>
+
+    @* ───────── Sub-Tab: Member-Cache ───────── *@
+    @if (_subTab == "cache")
+    {
+        <div style="margin-top:12px;">
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+                <button class="btn" @onclick="LoadCache" title="@L.T("Web_MemberTools_Tip_LoadCache")">@L.T("Web_MemberTools_Btn_LoadCache")</button>
+                <button class="btn btn-secondary" @onclick="ExportCacheCsv" disabled="@(_allCacheEntries.Count == 0)">@L.T("Settings_Btn_ExportCsv")</button>
+                @if (!string.IsNullOrEmpty(_cacheStatus))
+                {
+                    <span class="text-muted">@_cacheStatus</span>
+                }
+            </div>
+
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+                <input type="text" @bind="_cacheSearch" @bind:event="oninput" class="form-input" placeholder="Suche nach Name, E-Mail, RFID-Tag oder Member-ID..." style="flex:1;" />
+                <button class="btn btn-sm" @onclick='() => _cacheSearch = ""'>✕</button>
+            </div>
+
+            @{ var filteredCache = FilterCache(); }
+            @if (filteredCache.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>@L.T("Settings_Col_MemberId")</th>
+                            <th>@L.T("Settings_Col_FirstName")</th>
+                            <th>@L.T("Settings_Col_LastName")</th>
+                            <th>@L.T("Settings_Col_Email")</th>
+                            <th>RFID Tag</th>
+                            <th>@L.T("Settings_Col_IsActive")</th>
+                            <th>@L.T("Settings_Col_IsCheckedIn")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var m in filteredCache)
+                        {
+                            <tr class="@(_selectedCacheEntry == m ? "row-selected" : "")"
+                                @onclick="() => SelectCacheEntry(m)"
+                                @ondblclick="() => { SelectCacheEntry(m); EditCacheEntry(); }"
+                                style="cursor:pointer;">
+                                <td>@m.MemberId</td>
+                                <td>@m.Firstname</td>
+                                <td>@m.Lastname</td>
+                                <td>@m.Email</td>
+                                <td>@m.RfidTag</td>
+                                <td>@(m.Active ? "✓" : "—")</td>
+                                <td>@(m.IsCheckedIn ? "✓" : "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <p class="text-muted" style="margin-top:4px;">@string.Format(L.T("Web_MemberTools_EntriesOf"), filteredCache.Count, _allCacheEntries.Count)</p>
+            }
+
+            <div style="display:flex; gap:10px; margin-top:8px;">
+                <button class="btn btn-sm" disabled="@(_selectedCacheEntry == null)" @onclick="EditCacheEntry" title="@L.T("Web_MemberTools_Tip_EditCache")">@L.T("Web_MemberTools_Btn_Edit")</button>
+                <button class="btn btn-sm btn-danger" disabled="@(_selectedCacheEntry == null)" @onclick="DeleteCacheEntry" title="@L.T("Web_MemberTools_Tip_DeleteCache")">@L.T("Web_MemberTools_Btn_Delete")</button>
+                @if (!string.IsNullOrEmpty(_cacheSearchStatus))
+                {
+                    <span class="text-muted" style="margin-left:8px;">@_cacheSearchStatus</span>
+                }
+            </div>
+
+            @* Edit-Dialog für Cache-Eintrag (als MemberResult) *@
+            @if (_editingCacheEntryAsMember != null)
+            {
+                <EditMemberDialog Member="_editingCacheEntryAsMember" UseApi="false"
+                                  OnSave="OnCacheEditSave" OnCancel="OnCacheEditCancel" />
+            }
+        </div>
+    }
+
+    @* ───────── Sub-Tab: Members (Online) ───────── *@
+    else if (_subTab == "online")
+    {
+        <div style="margin-top:12px;">
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+                <button class="btn" @onclick="LoadMembersOnline">@L.T("Settings_Btn_GetMembers")</button>
+                <button class="btn btn-secondary" @onclick="ExportMembersCsv" disabled="@(_allOnlineMembers == null || _allOnlineMembers.Count == 0)">@L.T("Settings_Btn_ExportCsv")</button>
+                @if (!string.IsNullOrEmpty(_onlineStatus))
+                {
+                    <span class="text-muted">@_onlineStatus</span>
+                }
+            </div>
+
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+                <input type="text" @bind="_onlineSearch" @bind:event="oninput" class="form-input" placeholder="Suche nach Name, E-Mail, RFID-Tag oder Member-ID..." style="flex:1;" />
+                <button class="btn btn-sm" @onclick='() => _onlineSearch = ""'>✕</button>
+            </div>
+
+            @{ var filteredOnline = FilterOnline(); }
+            @if (filteredOnline.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>@L.T("Settings_Col_ID")</th>
+                            <th>@L.T("Settings_Col_FirstName")</th>
+                            <th>@L.T("Settings_Col_LastName")</th>
+                            <th>@L.T("Settings_Col_Email")</th>
+                            <th>RFID-Tag</th>
+                            <th>@L.T("Settings_Col_IsActive")</th>
+                            <th>@L.T("Settings_Col_MemberSince")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var m in filteredOnline)
+                        {
+                            <tr class="@(_selectedOnlineMember == m ? "row-selected" : "")"
+                                @onclick="() => SelectOnlineMember(m)"
+                                @ondblclick="() => { SelectOnlineMember(m); EditOnlineMember(); }"
+                                style="cursor:pointer;">
+                                <td>@m.member_id</td>
+                                <td>@m.firstname</td>
+                                <td>@m.lastname</td>
+                                <td>@m.email</td>
+                                <td>@m.rfid_tag</td>
+                                <td>@(m.active ? "✓" : "—")</td>
+                                <td>@m.MemberSinceFormatted</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <p class="text-muted" style="margin-top:4px;">@string.Format(L.T("Web_MemberTools_EntriesOf"), filteredOnline.Count, _allOnlineMembers?.Count ?? 0)</p>
+            }
+
+            <div style="display:flex; gap:10px; margin-top:8px;">
+                <button class="btn btn-sm" disabled="@(_selectedOnlineMember == null)" @onclick="EditOnlineMember" title="@L.T("Web_MemberTools_Tip_EditOnline")">@L.T("Web_MemberTools_Btn_Edit")</button>
+                @if (!string.IsNullOrEmpty(_onlineSearchStatus))
+                {
+                    <span class="text-muted" style="margin-left:8px;">@_onlineSearchStatus</span>
+                }
+            </div>
+
+            @* Edit-Dialog für Online-Mitglied *@
+            @if (_editingOnlineMember != null)
+            {
+                <EditMemberDialog Member="_editingOnlineMember" UseApi="true"
+                                  OnSave="OnOnlineEditSave" OnCancel="OnOnlineEditCancel" />
+            }
+        </div>
+    }
+
+    </div>
+
+@code {
+    private string _subTab = "cache";
+
+    // ─── Cache tab ───
+    private List<MemberCacheEntry> _allCacheEntries = new();
+    private MemberCacheEntry? _selectedCacheEntry;
+    private string _cacheSearch = "";
+    private string _cacheStatus = "";
+    private string _cacheSearchStatus = "";
+
+    // Cache edit dialog
+    private MemberCacheEntry? _editingCacheEntry;
+    private MemberResult? _editingCacheEntryAsMember;
+
+    // ─── Online tab ───
+    private List<MemberResult>? _allOnlineMembers;
+    private MemberResult? _selectedOnlineMember;
+    private string _onlineSearch = "";
+    private string _onlineStatus = "";
+    private string _onlineSearchStatus = "";
+
+    // Online edit dialog
+    private MemberResult? _editingOnlineMember;
+
+
+    private static string Escape(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return "";
+        if (value.Contains(';') || value.Contains('"') || value.Contains('\n'))
+            return "\"" + value.Replace("\"", "\"\"") + "\"";
+        return value;
+    }
+
+    // ══════════════════════════════════════
+    //  Member-Cache
+    // ══════════════════════════════════════
+
+    private void LoadCache()
+    {
+        try
+        {
+            using var cacheService = new Virtuagym.API.Services.MemberCacheService();
+            _allCacheEntries = cacheService.GetAll();
+            _cacheSearch = "";
+            _cacheStatus = string.Format(L.T("Web_MemberTools_EntriesLoaded"), _allCacheEntries.Count);
+            _cacheSearchStatus = string.Format(L.T("Web_MemberTools_Entries"), _allCacheEntries.Count);
+            _editingCacheEntry = null;
+        }
+        catch (Exception ex)
+        {
+            _cacheStatus = string.Format(L.T("Web_EditMember_Error"), ex.Message);
+        }
+    }
+
+    private List<MemberCacheEntry> FilterCache()
+    {
+        if (string.IsNullOrWhiteSpace(_cacheSearch)) return _allCacheEntries;
+        var s = _cacheSearch.ToLowerInvariant();
+        return _allCacheEntries.Where(m =>
+            (m.Firstname?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (m.Lastname?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (m.Email?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (m.RfidTag?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (m.Phone?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            m.MemberId.ToString() == s
+        ).ToList();
+    }
+
+    private void SelectCacheEntry(MemberCacheEntry entry)
+    {
+        _selectedCacheEntry = entry;
+    }
+
+    private void EditCacheEntry()
+    {
+        if (_selectedCacheEntry == null) return;
+        _editingCacheEntry = _selectedCacheEntry;
+        _editingCacheEntryAsMember = new MemberResult
+        {
+            member_id = _editingCacheEntry.MemberId,
+            firstname = _editingCacheEntry.Firstname ?? "",
+            lastname = _editingCacheEntry.Lastname ?? "",
+            email = _editingCacheEntry.Email ?? "",
+            phone = _editingCacheEntry.Phone ?? "",
+            rfid_tag = _editingCacheEntry.RfidTag ?? "",
+            active = _editingCacheEntry.Active
+        };
+    }
+
+    private void OnCacheEditSave(MemberResult updated)
+    {
+        if (_editingCacheEntry == null) return;
+        try
+        {
+            _editingCacheEntry.Firstname = updated.firstname?.Trim() ?? "";
+            _editingCacheEntry.Lastname = updated.lastname?.Trim() ?? "";
+            _editingCacheEntry.Email = updated.email?.Trim() ?? "";
+            _editingCacheEntry.Phone = updated.phone?.Trim() ?? "";
+            _editingCacheEntry.RfidTag = updated.rfid_tag?.Trim() ?? "";
+            _editingCacheEntry.Active = updated.active;
+
+            using var cache = new Virtuagym.API.Services.MemberCacheService();
+            cache.Upsert(_editingCacheEntry);
+            _cacheSearchStatus = string.Format(L.T("Dev_EntrySaved"), _editingCacheEntry.DisplayName);
+        }
+        catch (Exception ex)
+        {
+            _cacheSearchStatus = string.Format(L.T("Dev_SaveError"), ex.Message);
+        }
+        _editingCacheEntry = null;
+        _editingCacheEntryAsMember = null;
+    }
+
+    private void OnCacheEditCancel()
+    {
+        _editingCacheEntry = null;
+        _editingCacheEntryAsMember = null;
+    }
+
+    private void CancelCacheEdit()
+    {
+        _editingCacheEntry = null;
+        _editingCacheEntryAsMember = null;
+    }
+
+    private void DeleteCacheEntry()
+    {
+        if (_selectedCacheEntry == null) return;
+        try
+        {
+            using var cache = new Virtuagym.API.Services.MemberCacheService();
+            cache.DeleteByMemberId(_selectedCacheEntry.MemberId);
+            _allCacheEntries.Remove(_selectedCacheEntry);
+            _cacheSearchStatus = string.Format(L.T("Web_MemberTools_EntryDeleted"), _selectedCacheEntry.DisplayName);
+            _selectedCacheEntry = null;
+            _editingCacheEntry = null;
+        }
+        catch (Exception ex)
+        {
+            _cacheSearchStatus = string.Format(L.T("Web_EditMember_Error"), ex.Message);
+        }
+    }
+
+    private void ExportCacheCsv()
+    {
+        if (_allCacheEntries.Count == 0) { _cacheStatus = L.T("Dev_NoDataToExport"); return; }
+        try
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("MemberId;FirstName;LastName;E-Mail;Phone;RFID;Active;CheckedIn");
+            foreach (var e in _allCacheEntries)
+            {
+                sb.AppendLine(string.Join(";",
+                    e.MemberId,
+                    Escape(e.Firstname), Escape(e.Lastname), Escape(e.Email), Escape(e.Phone),
+                    Escape(e.RfidTag), e.Active ? "Yes" : "No", e.IsCheckedIn ? "Yes" : "No"));
+            }
+            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"member_cache_export_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
+            File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
+            _cacheStatus = string.Format(L.T("Web_MemberTools_EntriesExported"), _allCacheEntries.Count, Path.GetFileName(path));
+        }
+        catch (Exception ex)
+        {
+            _cacheStatus = string.Format(L.T("Dev_ExportError"), ex.Message);
+        }
+    }
+
+    // ══════════════════════════════════════
+    //  Members (Online)
+    // ══════════════════════════════════════
+
+    private async Task LoadMembersOnline()
+    {
+        _onlineStatus = "Lade Mitglieder von der API...";
+        _onlineSearchStatus = "";
+        _allOnlineMembers = null;
+        _editingOnlineMember = null;
+        StateHasChanged();
+        try
+        {
+            using var api = ApiFactory.Create();
+            var members = await api.GetMembersAsync(paginate: true);
+            if (members != null && members.Count > 0)
+            {
+                _allOnlineMembers = members;
+                _onlineSearch = "";
+                _onlineStatus = $"{members.Count} Mitglieder geladen.";
+                _onlineSearchStatus = $"{members.Count} Mitglieder";
+            }
+            else
+            {
+                _allOnlineMembers = null;
+                _onlineStatus = "Keine Mitglieder gefunden.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _onlineStatus = $"Fehler: {ex.Message}";
+        }
+    }
+
+    private List<MemberResult> FilterOnline()
+    {
+        if (_allOnlineMembers == null) return new();
+        if (string.IsNullOrWhiteSpace(_onlineSearch)) return _allOnlineMembers;
+        var s = _onlineSearch.ToLowerInvariant();
+        return _allOnlineMembers.Where(m =>
+            (m.firstname?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (m.lastname?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (m.email?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (m.rfid_tag?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (m.phone?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (m.mobile?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            m.member_id.ToString() == s ||
+            (m.club_member_id?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (m.external_id?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false)
+        ).ToList();
+    }
+
+    private void SelectOnlineMember(MemberResult member)
+    {
+        _selectedOnlineMember = member;
+    }
+
+    private void EditOnlineMember()
+    {
+        if (_selectedOnlineMember == null) return;
+        _editingOnlineMember = _selectedOnlineMember;
+    }
+
+    private void OnOnlineEditSave(MemberResult updated)
+    {
+        if (updated != null && _allOnlineMembers != null)
+        {
+            int idx = _allOnlineMembers.FindIndex(m => m.member_id == updated.member_id);
+            if (idx >= 0) _allOnlineMembers[idx] = updated;
+            _onlineSearchStatus = $"Mitglied '{updated.firstname} {updated.lastname}' aktualisiert.";
+        }
+        _editingOnlineMember = null;
+    }
+
+    private void OnOnlineEditCancel()
+    {
+        _editingOnlineMember = null;
+    }
+
+    private void CancelOnlineEdit()
+    {
+        _editingOnlineMember = null;
+    }
+
+    private void ExportMembersCsv()
+    {
+        if (_allOnlineMembers == null || _allOnlineMembers.Count == 0) { _onlineStatus = "Keine Mitglieder zum Exportieren."; return; }
+        try
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("member_id;club_member_id;firstname;lastname;email;gender;birthday;rfid_tag;phone;mobile;active;club_id;lang;user_avatar;last_visit;member_since;timestamp_edit;registration_date");
+            foreach (var m in _allOnlineMembers)
+            {
+                sb.AppendLine(string.Join(";",
+                    Escape(m.member_id.ToString()), Escape(m.club_member_id),
+                    Escape(m.firstname), Escape(m.lastname), Escape(m.email),
+                    Escape(m.gender), Escape(m.birthday), Escape(m.rfid_tag),
+                    Escape(m.phone), Escape(m.mobile), Escape(m.active.ToString()),
+                    Escape(m.club_id.ToString()), Escape(m.lang), Escape(m.user_avatar),
+                    Escape(m.LastVisitFormatted), Escape(m.MemberSinceFormatted),
+                    Escape(m.TimestampEditFormatted), Escape(m.RegistrationDateFormatted)));
+            }
+            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"Virtuagym_Members_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
+            File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
+            _onlineStatus = $"{_allOnlineMembers.Count} Mitglieder nach {Path.GetFileName(path)} exportiert.";
+        }
+        catch (Exception ex)
+        {
+            _onlineStatus = $"Export-Fehler: {ex.Message}";
+        }
+    }
+
+    }

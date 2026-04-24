@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+	<TargetFramework>net10.0-windows</TargetFramework>
+	<RootNamespace>Virtuagym.CheckIn.Core</RootNamespace>
+	<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+	<Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+	<ProjectReference Include="..\Virtuagym.API\Virtuagym.API.csproj" />
+	<ProjectReference Include="..\Hardware\Hardware.csproj" />
+	<ProjectReference Include="..\Jablotron.API\Jablotron.API.csproj" />
+	<ProjectReference Include="..\AccessPass\AccessPass.csproj" />
+  </ItemGroup>
+</Project>

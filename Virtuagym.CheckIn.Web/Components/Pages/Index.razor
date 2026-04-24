@@ -1,0 +1,41 @@
+@page "/"
+@using Virtuagym.CheckIn.Web.Services
+@inject WebLogService LogService
+@implements IDisposable
+
+<h3>Log</h3>
+
+<div class="log-container">
+    @foreach (var entry in _logEntries)
+    {
+        <div class="log-entry log-@entry.CssClass">
+            @entry.Text
+        </div>
+    }
+</div>
+
+@code {
+    private List<LogEntry> _logEntries = new();
+
+    protected override void OnInitialized()
+    {
+        LogService.OnLogEntry += HandleLogEntry;
+        _logEntries = LogService.GetRecentEntries().ToList();
+    }
+
+    private async void HandleLogEntry(LogEntry entry)
+    {
+        await InvokeAsync(() =>
+        {
+            _logEntries.Add(entry);
+            if (_logEntries.Count > 50)
+                _logEntries.RemoveAt(0);
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        LogService.OnLogEntry -= HandleLogEntry;
+    }
+}

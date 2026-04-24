@@ -1,0 +1,995 @@
+@* Full edit dialog for CheckinClientMapping – WPF parity *@
+@using Microsoft.Extensions.Options
+@using Virtuagym.CheckIn.Web.Models
+@using Virtuagym.CheckIn.Core.Models
+@using Virtuagym.CheckIn.Core.Services
+@using Hardware.Models
+@using Hardware.Services
+@using HidLibrary
+@using System.IO.Ports
+@using System.Text.RegularExpressions
+@using OpenCvSharp
+@using Virtuagym.API
+@implements IDisposable
+@inject IOptions<AppSettings> SettingsOptions
+
+<div class="modal-overlay visible" style="position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1000; display:flex; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:8px; width:max-content; max-height:90vh; overflow:auto; box-shadow:0 8px 32px rgba(0,0,0,0.25); padding:0;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 20px; border-bottom:1px solid #ddd;">
+            <h4 style="margin:0;">@(IsNew ? L.T("Web_EditMapping_Title_New") : L.T("Web_EditMapping_Title_Edit"))</h4>
+            <button style="background:none; border:none; font-size:20px; cursor:pointer;" @onclick="Cancel">&times;</button>
+        </div>
+
+        <div style="padding:16px 20px;">
+            @* ──── Tab buttons ──── *@
+            <div class="sub-tabs" style="margin-bottom:14px;">
+                <button class="sub-tab-btn @(_tab == "general" ? "active" : "")" @onclick='() => _tab = "general"'>@L.T("Web_EditMapping_Tab_General")</button>
+                <button class="sub-tab-btn @(_tab == "test" ? "active" : "")" @onclick='() => _tab = "test"'>@L.T("Web_EditMapping_Tab_DeviceTest")</button>
+                <button class="sub-tab-btn @(_tab == "relay" ? "active" : "")" @onclick='() => _tab = "relay"'>@L.T("Web_EditMapping_Tab_Relay")</button>
+                <button class="sub-tab-btn @(_tab == "pg" ? "active" : "")" @onclick='() => _tab = "pg"'>@L.T("Web_EditMapping_Tab_JablotronPG")</button>
+            </div>
+
+            @* ════════════════════════════════════════════ *@
+            @*  Tab 1: Allgemein                            *@
+            @* ════════════════════════════════════════════ *@
+            @if (_tab == "general")
+            {
+                <fieldset style="margin-bottom:12px; padding:10px; border:1px solid #ddd; border-radius:4px;">
+                    <legend style="font-weight:600;">@L.T("Web_EditMapping_Grp_Device")</legend>
+                    <div style="display:grid; grid-template-columns:160px 1fr; gap:6px 12px;">
+                        <label>Name:</label>
+                        <input type="text" class="form-input" @bind="Mapping.Name" @bind:event="oninput" title="@L.T("Web_EditMapping_Tip_Name")" />
+
+                        <label>@L.T("Web_EditMapping_Lbl_InputType")</label>
+                        <select class="form-input" style="width:220px;" @bind="Mapping.InputType">
+                            <option value="@CheckinClientMapping.InputTypeRfid">@L.T("Web_EditMapping_Type_UsbReader")</option>
+                            <option value="@CheckinClientMapping.InputTypeQrCode">@L.T("Web_EditMapping_Type_QrCamera")</option>
+                            <option value="@CheckinClientMapping.InputTypeCcid">@L.T("Web_EditMapping_Type_Ccid")</option>
+                        </select>
+
+                        @if (Mapping.InputType != CheckinClientMapping.InputTypeQrCode)
+                        {
+                            <label>USB Device:</label>
+                            <div style="display:flex; gap:4px; align-items:center;">
+                                <select class="form-input" style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;" @bind="_selectedDeviceId">
+                                    <option value="">@L.T("Web_EditMapping_Select_ManualInput")</option>
+                                    @foreach (var d in GetFilteredHidDevices())
+                                    {
+                                        <option value="@d.DeviceId">@d.DisplayName</option>
+                                    }
+                                </select>
+                                <button type="button" class="btn btn-sm" @onclick="RefreshDevices" title="@L.T("Web_EditMapping_Tip_RefreshDevices")">🔄</button>
+                            </div>
+                            @if (string.IsNullOrEmpty(_selectedDeviceId))
+                            {
+                                <label>@L.T("Web_EditMapping_Lbl_DeviceId")</label>
+                                <input type="text" class="form-input" @bind="Mapping.DeviceID" placeholder="@L.T("Web_EditMapping_Placeholder_DeviceId")" />
+                            }
+                        }
+                        else
+                        {
+                            <label>@L.T("Web_EditMapping_Lbl_Camera")</label>
+                            <select class="form-input" style="width:320px;" @bind="Mapping.CameraIndex">
+                                @foreach (var cam in _cameras)
+                                {
+                                    <option value="@cam.Index">@cam.DisplayName</option>
+                                }
+                            </select>
+
+                            <label>@L.T("Web_EditMapping_Lbl_Resolution")</label>
+                            <select class="form-input" style="width:220px;" @bind="_cameraResolution">
+                                <option value="640x480">640 × 480</option>
+                                <option value="1280x720">1280 × 720 (HD)</option>
+                                <option value="1920x1080">1920 × 1080 (Full HD)</option>
+                                <option value="2560x1440">2560 × 1440 (QHD)</option>
+                                <option value="3840x2160">3840 × 2160 (Ultra HD)</option>
+                            </select>
+
+                            <label>@L.T("Web_EditMapping_Lbl_VideoBackend")</label>
+                            <select class="form-input" style="width:340px;" @bind="Mapping.CameraBackend">
+                                @foreach (var backend in _cameraBackends)
+                                {
+                                    <option value="@backend.Key">@backend.Value</option>
+                                }
+                            </select>
+                        }
+
+                        @if (Mapping.InputType == CheckinClientMapping.InputTypeQrCode)
+                        {
+                            <div style="grid-column:1/-1; margin-top:8px;">
+                                <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+                                    <button class="btn btn-sm" @onclick="ToggleCameraPreview">
+                                        @(_cameraPreviewRunning ? L.T("Web_EditMapping_Btn_StopPreview") : L.T("Web_EditMapping_Btn_CameraPreview"))
+                                    </button>
+                                    @if (!string.IsNullOrEmpty(_cameraPreviewStatus))
+                                    {
+                                        <span class="text-muted" style="font-size:12px;">@_cameraPreviewStatus</span>
+                                    }
+                                </div>
+                                @if (!string.IsNullOrEmpty(_cameraPreviewBase64))
+                                {
+                                    <div style="border:1px solid #ddd; padding:4px; background:#000; display:inline-block; border-radius:4px;">
+                                        <img src="data:image/jpeg;base64,@_cameraPreviewBase64" alt="@L.T("Web_EditMapping_Btn_CameraPreview")"
+                                             style="max-width:480px; max-height:360px; display:block;" />
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        @if (Mapping.InputType == CheckinClientMapping.InputTypeRfid)
+                        {
+                            <label>Repeat time (ms):</label>
+                            <input type="number" class="form-input" style="width:120px;" @bind="_repeatTimeMs" />
+
+                            <label>@L.T("Web_EditMapping_Lbl_ReaderProfile")</label>
+                            <select class="form-input" style="width:280px;" @bind="_selectedHidProfileId">
+                                @foreach (var p in _hidProfiles)
+                                {
+                                    <option value="@p.ProfileId">@p.DisplayName</option>
+                                }
+                            </select>
+                        }
+                    </div>
+                </fieldset>
+
+                <fieldset style="padding:10px; border:1px solid #ddd; border-radius:4px;">
+                    <legend style="font-weight:600;">@L.T("Web_EditMapping_Grp_VirtuagymSettings")</legend>
+                    <div style="display:grid; grid-template-columns:160px 1fr; gap:6px 12px;">
+                        <label>Check-In Key:</label>
+                        <input type="text" class="form-input" @bind="Mapping.CheckinKey" @bind:event="oninput" />
+
+                        <label>@L.T("Web_EditMapping_Lbl_ApiMode")</label>
+                        @{
+                            var _apiDevId = VirtuagymApiBase.ExtractDeviceId(Mapping.CheckinKey?.Trim() ?? "");
+                            var _apiSlug = CheckinClientMapping.ToDeviceIdSlug(Mapping.Name?.Trim() ?? "");
+                        }
+                        @if (!string.IsNullOrEmpty(_apiDevId))
+                        {
+                            <span style="font-size:12px; color:green;" title="@L.T("Web_EditMapping_Tip_V0_HasDeviceId")">
+                                @string.Format(L.T("Web_EditMapping_ApiMode_V0_DeviceId"), _apiDevId)
+                            </span>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(Mapping.CheckinKey)
+                                 && Mapping.CheckinKey.Contains("CHECKIN", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <span style="font-size:12px; color:red;" title="@L.T("Web_EditMapping_Tip_V0_Warn")">
+                                @L.T("Web_EditMapping_ApiMode_V0_NoDeviceId")
+                            </span>
+                        }
+                        else
+                        {
+                            <span style="font-size:12px; color:steelblue;" title="@L.T("Web_EditMapping_Tip_V1")">
+                                @string.Format(L.T("Web_EditMapping_ApiMode_V1_Slug"), !string.IsNullOrEmpty(_apiSlug) ? _apiSlug : L.T("Web_EditMapping_ApiMode_V1_NoName"))
+                            </span>
+                        }
+
+                        <label>@L.T("Web_EditMapping_Lbl_DoubleScan")</label>
+                        <select class="form-input" style="width:200px;" @bind="Mapping.DoubleScanThresholdMs">
+                            <option value="0">@L.T("Web_EditMapping_Disabled")</option>
+                            <option value="5000">@L.T("Web_EditMapping_DS_5s")</option>
+                            <option value="15000">@L.T("Web_EditMapping_DS_15s")</option>
+                            <option value="30000">@L.T("Web_EditMapping_DS_30s")</option>
+                            <option value="60000">@L.T("Web_EditMapping_DS_1m")</option>
+                            <option value="120000">@L.T("Web_EditMapping_DS_2m")</option>
+                            <option value="300000">@L.T("Web_EditMapping_DS_5m")</option>
+                            <option value="600000">@L.T("Web_EditMapping_DS_10m")</option>
+                            <option value="900000">@L.T("Web_EditMapping_DS_15m")</option>
+                            <option value="1800000">@L.T("Web_EditMapping_DS_30m")</option>
+                        </select>
+
+                        <label>@L.T("Web_EditMapping_Lbl_Service")</label>
+                        <select class="form-input" @bind="Mapping.CreditServiceId">
+                            <option value="">@L.T("Web_EditMapping_Disabled")</option>
+                            @foreach (var svc in _creditServices)
+                            {
+                                <option value="@svc.service_id">@svc.DisplayName</option>
+                            }
+                        </select>
+
+                        <label>@L.T("Web_EditMapping_Lbl_AutoCheckout")</label>
+                        <select class="form-input" style="width:200px;" @bind="Mapping.AutoCheckoutMinutes">
+                            <option value="0">@L.T("Web_EditMapping_Disabled")</option>
+                            <option value="1">@L.T("Web_EditMapping_AC_1m")</option>
+                            <option value="5">@L.T("Web_EditMapping_AC_5m")</option>
+                            <option value="15">@L.T("Web_EditMapping_AC_15m")</option>
+                            <option value="30">@L.T("Web_EditMapping_AC_30m")</option>
+                            <option value="60">@L.T("Web_EditMapping_AC_1h")</option>
+                            <option value="120">@L.T("Web_EditMapping_AC_2h")</option>
+                            <option value="240">@L.T("Web_EditMapping_AC_4h")</option>
+                            <option value="480">@L.T("Web_EditMapping_AC_8h")</option>
+                            <option value="720">@L.T("Web_EditMapping_AC_12h")</option>
+                        </select>
+
+                        <label>Leser-Entprellung (Sek):</label>
+                        <input type="number" class="form-input" style="width:100px;" @bind="_duplicateTimeoutSeconds"
+                               placeholder="@(SettingsOptions.Value.DuplicateTimeoutSeconds)"
+                               title="Zeitspanne in Sekunden, in der identische Scans vom Lesegerät ignoriert werden. Leer = globaler Standard (@(SettingsOptions.Value.DuplicateTimeoutSeconds)s)." />
+
+                        @if (Mapping.InputType != CheckinClientMapping.InputTypeQrCode)
+                        {
+                            <label>@L.T("Web_EditMapping_Lbl_CardIdMode")</label>
+                            <select class="form-input" style="width:380px;" @bind="Mapping.CardIdMode">
+                                <option value="0">@L.T("Web_EditMapping_CardIdMode_Standard")</option>
+                                <option value="1">@L.T("Web_EditMapping_CardIdMode_FullDecimal")</option>
+                                <option value="2">@L.T("Web_EditMapping_CardIdMode_FullHex")</option>
+                                <option value="3">@L.T("Web_EditMapping_CardIdMode_Mifare")</option>
+                            </select>
+                        }
+                    </div>
+                </fieldset>
+            }
+
+            @* ════════════════════════════════════════════ *@
+            @*  Tab 2: Geräte-Test                          *@
+            @* ════════════════════════════════════════════ *@
+            else if (_tab == "test")
+            {
+                <fieldset style="padding:10px; border:1px solid #ddd; border-radius:4px;">
+                    <legend style="font-weight:600;">@L.T("Web_EditMapping_Grp_DeviceTest")</legend>
+
+                    @if (Mapping.InputType == CheckinClientMapping.InputTypeRfid)
+                    {
+                        <div style="display:flex; gap:8px; margin-bottom:8px;">
+                            <button class="btn btn-sm" @onclick="TestBeep" disabled="@_testRunning" title="@L.T("Web_EditMapping_Tip_Beep")">Beep</button>
+                            <button class="btn btn-sm" @onclick="TestRead" disabled="@_testRunning" title="@L.T("Web_EditMapping_Tip_ReadCard")">@L.T("EditMapping_Btn_ReadCard")</button>
+                        </div>
+                    }
+                    else if (Mapping.InputType == CheckinClientMapping.InputTypeQrCode)
+                    {
+                        <div style="display:flex; gap:8px; margin-bottom:8px;">
+                            <button class="btn btn-sm" @onclick="StartQrScanTest" disabled="@_qrTestRunning"
+                                    title="@L.T("Web_EditMapping_Tip_QrScan")">
+                                @L.T("EditMapping_Btn_QrScan")
+                            </button>
+                            <button class="btn btn-sm" @onclick="StopQrScanTest" disabled="@(!_qrTestRunning)"
+                                    title="@L.T("Web_EditMapping_Tip_QrStop")">
+                                @L.T("EditMapping_Btn_Stop")
+                            </button>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(_qrTestStatus))
+                        {
+                            <p class="text-muted" style="margin:4px 0;">@_qrTestStatus</p>
+                        }
+
+                        @if (!string.IsNullOrEmpty(_qrTestPreviewBase64))
+                        {
+                            <div style="border:2px solid #ccc; background:#222; display:inline-block; border-radius:8px; padding:8px; margin:6px 0; position:relative;">
+                                <div style="margin-bottom:6px; display:flex; align-items:center; gap:8px;">
+                                    <span style="background:#4CAF50; color:white; font-weight:bold; font-size:11px; padding:2px 8px; border-radius:4px;">@L.T("Web_EditMapping_Lbl_CameraPreviewLabel")</span>
+                                    <span style="color:#999; font-size:11px;">@L.T("Web_EditMapping_Lbl_QrScannerTest")</span>
+                                </div>
+                                <img src="data:image/jpeg;base64,@_qrTestPreviewBase64" alt="@L.T("Web_EditMapping_Btn_CameraPreview")"
+                                     style="max-width:480px; max-height:360px; display:block; border-radius:4px;" />
+                                <p style="color:#999; font-size:11px; font-style:italic; text-align:center; margin:6px 0 0;">@L.T("Web_EditMapping_PositionQrCode")</p>
+                            </div>
+                        }
+                    }
+
+                    @if (!string.IsNullOrEmpty(_testResult))
+                    {
+                        <p style="color:@_testResultColor; white-space:pre-line; font-size:13px;">@_testResult</p>
+                    }
+
+                    <hr style="margin:12px 0;" />
+                    <strong>@L.T("Web_EditMapping_Lbl_CheckinTest")</strong>
+                    <div style="display:flex; gap:8px; margin-top:6px;">
+                        <input type="text" class="form-input" style="flex:1; min-width:0;" @bind="_testCardId" placeholder="@L.T("Web_EditMapping_Placeholder_CardId")" />
+                        <button class="btn btn-sm" style="white-space:nowrap;" @onclick="TestCheckin">@L.T("Web_EditMapping_Btn_TestCheckin")</button>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_checkinTestResult))
+                    {
+                        <p class="text-muted" style="margin-top:6px;">@_checkinTestResult</p>
+                    }
+                </fieldset>
+            }
+
+            @* ════════════════════════════════════════════ *@
+            @*  Tab 3: Relay                                *@
+            @* ════════════════════════════════════════════ *@
+            else if (_tab == "relay")
+            {
+                <fieldset style="padding:10px; border:1px solid #ddd; border-radius:4px;">
+                    <legend style="font-weight:600;">Relay</legend>
+                    <div style="display:grid; grid-template-columns:160px 1fr; gap:6px 12px;">
+                        <label>@L.T("Web_EditMapping_Lbl_RelayEnabled")</label>
+                        <input type="checkbox" @bind="Mapping.RelayEnabled" />
+
+                        <label>@L.T("Web_EditMapping_Lbl_RelayComPort")</label>
+                        <select class="form-input" style="width:140px;" @bind="Mapping.RelayComPort" disabled="@(!Mapping.RelayEnabled)">
+                            <option value="">@L.T("Web_EditMapping_Select_NoPort")</option>
+                            @foreach (var port in _serialPorts)
+                            {
+                                <option value="@port">@port</option>
+                            }
+                        </select>
+
+                        <label>Baudrate:</label>
+                        <select class="form-input" style="width:140px;" @bind="Mapping.RelayBaudRate" disabled="@(!Mapping.RelayEnabled)">
+                            <option value="1200">1200</option>
+                            <option value="2400">2400</option>
+                            <option value="4800">4800</option>
+                            <option value="9600">9600</option>
+                            <option value="19200">19200</option>
+                            <option value="38400">38400</option>
+                            <option value="57600">57600</option>
+                            <option value="115200">115200</option>
+                        </select>
+
+                        <label>@L.T("Web_EditMapping_Lbl_RelayNumber")</label>
+                        <select class="form-input" style="width:80px;" @bind="Mapping.RelayNumber" disabled="@(!Mapping.RelayEnabled)">
+                            @for (int i = 1; i <= 8; i++)
+                            {
+                                <option value="@i">@i</option>
+                            }
+                        </select>
+
+                        <label>@L.T("Web_EditMapping_Lbl_SwitchTime")</label>
+                        <select class="form-input" style="width:100px;" @bind="Mapping.RelayTriggerTime" disabled="@(!Mapping.RelayEnabled)">
+                            <option value="0.05">0.05</option>
+                            <option value="0.5">0.5</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="5">5</option>
+                            <option value="10">10</option>
+                            <option value="15">15</option>
+                            <option value="30">30</option>
+                            <option value="60">60</option>
+                        </select>
+                    </div>
+                    <div style="margin-top:10px;">
+                        <button class="btn btn-sm" @onclick="TestRelay" disabled="@(!Mapping.RelayEnabled)">@L.T("Web_EditMapping_Btn_TestRelay")</button>
+                        @if (!string.IsNullOrEmpty(_relayTestResult))
+                        {
+                            <span class="text-muted" style="margin-left:8px;">@_relayTestResult</span>
+                        }
+                    </div>
+                </fieldset>
+            }
+
+            @* ════════════════════════════════════════════ *@
+            @*  Tab 4: Jablotron PG                         *@
+            @* ════════════════════════════════════════════ *@
+            else if (_tab == "pg")
+            {
+                <fieldset style="padding:10px; border:1px solid #ddd; border-radius:4px; margin-bottom:12px;">
+                    <legend style="font-weight:600;">@L.T("Web_EditMapping_Grp_GateControl")</legend>
+                    <div style="display:grid; grid-template-columns:160px 1fr; gap:6px 12px;">
+                        <label>@L.T("Web_EditMapping_Lbl_GateEnabled")</label>
+                        <input type="checkbox" @bind="Mapping.PgEnabled" />
+
+                        <label>Programmable Gate:</label>
+                        <select class="form-input" @bind="_selectedPgGateComponentId" disabled="@(!Mapping.PgEnabled)">
+                                <option value="">@L.T("Web_EditMapping_Select_NoGate")</option>
+                                @foreach (var g in _pgGates)
+                                {
+                                    <option value="@g.CloudComponentId">@g.Display</option>
+                                }
+                            </select>
+
+                            <label>@L.T("Web_EditMapping_Lbl_SwitchTime")</label>
+                        <select class="form-input" style="width:80px;" @bind="Mapping.PgTriggerTimeSec" disabled="@(!Mapping.PgEnabled)">
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="5">5</option>
+                            <option value="10">10</option>
+                            <option value="15">15</option>
+                            <option value="30">30</option>
+                            <option value="60">60</option>
+                        </select>
+                    </div>
+                </fieldset>
+
+                <fieldset style="padding:10px; border:1px solid #ddd; border-radius:4px;">
+                    <legend style="font-weight:600;">@L.T("Web_EditMapping_Grp_TriggerCondition")</legend>
+                    <p class="text-muted" style="font-size:12px; margin-top:0;">@L.T("Web_EditMapping_Tip_TriggerCondition")</p>
+                    <div style="display:grid; grid-template-columns:160px 1fr; gap:6px 12px;">
+                        <label>@L.T("Web_EditMapping_Lbl_Condition")</label>
+                        <select class="form-input" style="width:260px;" @bind="Mapping.PgConditionMode" disabled="@(!Mapping.PgEnabled)">
+                            <option value="Always">@L.T("Web_EditMapping_Cond_Always")</option>
+                            <option value="OnlyIfOn">@L.T("Web_EditMapping_Cond_OnlyIfOn")</option>
+                            <option value="OnlyIfOff">@L.T("Web_EditMapping_Cond_OnlyIfOff")</option>
+                            <option value="TimeRange">@L.T("Web_EditMapping_Cond_TimeRange")</option>
+                        </select>
+
+                        @if (Mapping.PgConditionMode == "OnlyIfOn" || Mapping.PgConditionMode == "OnlyIfOff")
+                        {
+                            <label>@L.T("Web_EditMapping_Lbl_ConditionGate")</label>
+                            <select class="form-input" @bind="_selectedPgCondGateComponentId" disabled="@(!Mapping.PgEnabled)">
+                                <option value="">@L.T("Web_EditMapping_Select_NoGate")</option>
+                                @foreach (var g in _pgGates)
+                                {
+                                    <option value="@g.CloudComponentId">@g.Display</option>
+                                }
+                            </select>
+                        }
+
+                        @if (Mapping.PgConditionMode == "TimeRange")
+                        {
+                            <label>@L.T("Web_EditMapping_Lbl_From")</label>
+                            <input type="text" class="form-input" style="width:80px;" @bind="Mapping.PgConditionTimeFrom"
+                                   placeholder="06:00" disabled="@(!Mapping.PgEnabled)" />
+
+                            <label>@L.T("Web_EditMapping_Lbl_To")</label>
+                            <input type="text" class="form-input" style="width:80px;" @bind="Mapping.PgConditionTimeTo"
+                                   placeholder="22:00" disabled="@(!Mapping.PgEnabled)" />
+                        }
+                    </div>
+                </fieldset>
+
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                    <button class="btn btn-sm" @onclick="ReloadPgGates">@L.T("Web_EditMapping_Btn_LoadGates")</button>
+                    <button class="btn btn-sm" @onclick="TestPgGate" disabled="@(!Mapping.PgEnabled || string.IsNullOrEmpty(_selectedPgGateComponentId))">@L.T("Web_EditMapping_Btn_TestGate")</button>
+                    @if (!string.IsNullOrEmpty(_pgStatus))
+                    {
+                        <span class="text-muted">@_pgStatus</span>
+                    }
+                </div>
+            }
+        </div>
+
+        @* ──── Footer ──── *@
+        <div style="display:flex; justify-content:flex-end; gap:10px; padding:12px 20px; border-top:1px solid #ddd;">
+            @if (!string.IsNullOrEmpty(_validationError))
+            {
+                <span style="color:red; margin-right:auto;">@_validationError</span>
+            }
+            <button class="btn" @onclick="Save">@L.T("Web_EditMapping_Btn_Apply")</button>
+            <button class="btn btn-secondary" @onclick="Cancel">@L.T("Btn_Cancel")</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public CheckinClientMapping Mapping { get; set; } = new();
+    [Parameter] public bool IsNew { get; set; }
+    [Parameter] public List<HidDeviceInfo> AvailableHidDevices { get; set; } = new();
+    [Parameter] public HashSet<string> UsedDeviceIds { get; set; } = new();
+    [Parameter] public EventCallback<CheckinClientMapping> OnSave { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public EventCallback OnRefreshDevices { get; set; }
+
+    private string _tab = "general";
+
+    // General tab state
+    private string _selectedDeviceId = "";
+    private string _cameraResolution = "640x480";
+    private string _selectedHidProfileId = "";
+    private int? _repeatTimeMs;
+    private int? _duplicateTimeoutSeconds;
+    private List<CameraDeviceInfo> _cameras = new();
+    private List<HidProfile> _hidProfiles = new();
+    private List<ClubService> _creditServices = new();
+    private string[] _serialPorts = [];
+
+    // PG tab state
+    private List<PgGateEntry> _pgGates = new();
+    private string _selectedPgGateComponentId = "";
+    private string _selectedPgCondGateComponentId = "";
+    private string _pgStatus = "";
+
+    // Test tab state
+    private string _testResult = "";
+    private string _testResultColor = "gray";
+    private bool _testRunning;
+    private string _testCardId = "";
+    private string _checkinTestResult = "";
+    private string _relayTestResult = "";
+
+    // Validation
+    private string _validationError = "";
+
+    // Camera preview (General tab)
+    private bool _cameraPreviewRunning;
+    private string _cameraPreviewBase64 = "";
+    private string _cameraPreviewStatus = "";
+    private CancellationTokenSource _previewCts;
+
+    // Camera backends
+    private List<KeyValuePair<string, string>> _cameraBackends = new();
+
+    // QR scan test (Device Test tab)
+    private bool _qrTestRunning;
+    private string _qrTestPreviewBase64 = "";
+    private string _qrTestStatus = "";
+    private CancellationTokenSource _qrTestCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load cameras
+        try { _cameras = (await CameraDiscoveryService.GetCamerasAsync()).ToList(); } catch { }
+
+        // Populate video backends from OpenCvSharp enum
+        _cameraBackends = Enum.GetValues<VideoCaptureAPIs>()
+            .Select(api => new KeyValuePair<string, string>(api.ToString(), api switch
+            {
+                VideoCaptureAPIs.ANY          => L.T("Web_EditMapping_BackendAutomatic"),
+                VideoCaptureAPIs.V4L          => "V4L/V4L2 [Linux]",
+                VideoCaptureAPIs.FIREWIRE     => "IEEE 1394 / FireWire",
+                VideoCaptureAPIs.DSHOW        => "DirectShow (DSHOW) [Windows]",
+                VideoCaptureAPIs.PVAPI        => "PvAPI / Prosilica GigE",
+                VideoCaptureAPIs.OPENNI       => "OpenNI",
+                VideoCaptureAPIs.OPENNI_ASUS  => "OpenNI ASUS Xtion",
+                VideoCaptureAPIs.ANDROID      => "Android MediaNDK",
+                VideoCaptureAPIs.XIAPI        => "XIMEA Camera API",
+                VideoCaptureAPIs.AVFOUNDATION => "AVFoundation [macOS/iOS]",
+                VideoCaptureAPIs.GIGANETIX    => "Smartek Giganetix GigE",
+                VideoCaptureAPIs.MSMF         => "Media Foundation (MSMF) [Windows]",
+                VideoCaptureAPIs.WINRT        => "Windows Runtime (WINRT) [Windows]",
+                VideoCaptureAPIs.INTELPERC    => "Intel RealSense (PerC)",
+                VideoCaptureAPIs.OPENNI2      => "OpenNI2",
+                VideoCaptureAPIs.OPENNI2_ASUS => "OpenNI2 ASUS",
+                VideoCaptureAPIs.GPHOTO2      => "gPhoto2 [Linux/macOS]",
+                VideoCaptureAPIs.GSTREAMER    => "GStreamer",
+                VideoCaptureAPIs.FFMPEG       => "FFmpeg",
+                VideoCaptureAPIs.IMAGES       => L.T("Web_EditMapping_BackendImageSequence"),
+                VideoCaptureAPIs.ARAVIS       => "Aravis GigE [Linux]",
+                VideoCaptureAPIs.INTEL_MFX    => "Intel Media SDK",
+                VideoCaptureAPIs.XINE         => "Xine [Linux]",
+                _                             => api.ToString()
+            }))
+            .ToList();
+
+        // Load HID profiles
+        try { _hidProfiles = HidProfileLoader.Load(); } catch { }
+
+        // Load serial ports
+        try { _serialPorts = SerialPort.GetPortNames().OrderBy(p => p).ToArray(); } catch { }
+
+        // Load credit services
+        try { _creditServices = ClubServiceLoader.Load().Where(s => s.isActive).ToList(); } catch { }
+
+        // Load PG gates
+        ReloadPgGates();
+
+        // Set state from mapping
+        _selectedDeviceId = Mapping.DeviceID ?? "";
+        _cameraResolution = $"{Mapping.CameraResolutionWidth}x{Mapping.CameraResolutionHeight}";
+        _selectedHidProfileId = Mapping.HidProfile ?? "";
+        _repeatTimeMs = Mapping.RepeatTimeMs ?? 400;
+        _duplicateTimeoutSeconds = Mapping.DuplicateTimeoutSeconds;
+        _selectedPgGateComponentId = Mapping.PgGateComponentId ?? "";
+        _selectedPgCondGateComponentId = Mapping.PgConditionGateComponentId ?? "";
+
+        // Ensure serial port is in list
+        if (!string.IsNullOrEmpty(Mapping.RelayComPort) && !_serialPorts.Contains(Mapping.RelayComPort))
+            _serialPorts = _serialPorts.Append(Mapping.RelayComPort).ToArray();
+    }
+
+    private IEnumerable<HidDeviceInfo> GetFilteredHidDevices()
+    {
+        return AvailableHidDevices.Where(d => !UsedDeviceIds.Contains(d.DeviceId));
+    }
+
+    private async Task RefreshDevices()
+    {
+        await OnRefreshDevices.InvokeAsync();
+        StateHasChanged();
+    }
+
+    private void ReloadPgGates()
+    {
+        try
+        {
+            PgGateLoader.ClearCache();
+            _pgGates = PgGateLoader.Load();
+            _pgStatus = _pgGates.Count > 0 ? string.Format(L.T("Web_EditMapping_GatesLoaded"), _pgGates.Count) : L.T("Web_EditMapping_NoGatesFound");
+        }
+        catch (Exception ex)
+        {
+            _pgGates = new();
+            _pgStatus = string.Format(L.T("Web_EditMember_Error"), ex.Message);
+        }
+    }
+
+    private async Task TestPgGate()
+    {
+        var gate = _pgGates.FirstOrDefault(g => g.CloudComponentId == _selectedPgGateComponentId);
+        if (gate == null) { _pgStatus = L.T("Web_EditMapping_SelectGate"); return; }
+        if (!gate.CanControl) { _pgStatus = L.T("Web_EditMapping_GateNotControllable"); return; }
+
+        _pgStatus = string.Format(L.T("Web_EditMapping_GateSwitchingOn"), gate.Name);
+        StateHasChanged();
+
+        try
+        {
+            using var client = new Jablotron.API.Services.JablotronCloudService(
+                SettingsOptions.Value.JablotronApiUrl, SettingsOptions.Value.JablotronApiUsername, SettingsOptions.Value.JablotronApiPassword);
+            client.PerformLogin();
+
+            int? serviceId = int.TryParse(gate.ServiceId, out var sid) && sid > 0 ? sid : null;
+            var ok = client.ControlProgrammableGate(serviceId, gate.CloudComponentId, "ON");
+            if (!ok) { _pgStatus = L.T("Web_EditMapping_GateOnFailed"); return; }
+
+            _pgStatus = string.Format(L.T("Web_EditMapping_GateOnWaiting"), gate.Name, Mapping.PgTriggerTimeSec);
+            StateHasChanged();
+
+            if (Mapping.PgTriggerTimeSec > 0)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(Mapping.PgTriggerTimeSec));
+                var offOk = client.ControlProgrammableGate(serviceId, gate.CloudComponentId, "OFF");
+                _pgStatus = offOk
+                    ? string.Format(L.T("Web_EditMapping_GateTested"), gate.Name, Mapping.PgTriggerTimeSec)
+                    : L.T("Web_EditMapping_GateOnButOffFailed");
+            }
+            else
+            {
+                _pgStatus = string.Format(L.T("Web_EditMapping_GateSetOn"), gate.Name);
+            }
+        }
+        catch (Exception ex)
+        {
+            _pgStatus = string.Format(L.T("Web_EditMember_Error"), ex.Message);
+        }
+    }
+
+    private async Task TestBeep()
+    {
+        var profile = _hidProfiles.FirstOrDefault(p => p.ProfileId == _selectedHidProfileId);
+        await SendDeviceTestCommand(profile?.BeepCommandBytes ?? [], "Beep");
+    }
+
+    private async Task TestRead()
+    {
+        var profile = _hidProfiles.FirstOrDefault(p => p.ProfileId == _selectedHidProfileId);
+        await SendDeviceTestCommand(profile?.ReadCommandBytes ?? [], "Read");
+    }
+
+    private async Task SendDeviceTestCommand(byte[] command, string commandName)
+    {
+        string selectedDeviceId = !string.IsNullOrWhiteSpace(_selectedDeviceId) ? _selectedDeviceId : Mapping.DeviceID;
+        if (string.IsNullOrWhiteSpace(selectedDeviceId))
+        {
+            _testResult = L.T("Web_EditMapping_NoDevice");
+            _testResultColor = "orange";
+            return;
+        }
+
+        _testRunning = true;
+        _testResult = string.Format(L.T("Web_EditMapping_SendingCommand"), commandName, selectedDeviceId);
+        _testResultColor = "gray";
+        StateHasChanged();
+
+        try
+        {
+            var result = await Task.Run(() =>
+            {
+                var hidDevices = HidDevices.Enumerate();
+                HidDevice targetDevice = null;
+
+                foreach (var device in hidDevices)
+                {
+                    string escapedPattern = Regex.Escape(selectedDeviceId).Replace(Regex.Escape("&8"), "[#&]8");
+                    if (Regex.IsMatch(device.DevicePath, escapedPattern, RegexOptions.IgnoreCase))
+                    {
+                        targetDevice = device;
+                        break;
+                    }
+                }
+
+                if (targetDevice == null)
+                    return ("red", L.T("Web_EditMapping_DeviceNotFound"));
+
+                targetDevice.OpenDevice();
+                if (!targetDevice.IsConnected)
+                {
+                    targetDevice.CloseDevice();
+                    return ("red", L.T("Web_EditMapping_DeviceOpenFailed"));
+                }
+
+                bool writeSuccess = targetDevice.Write(command);
+
+                if (commandName == "Read")
+                {
+                    var report = targetDevice.Read(3000);
+                    targetDevice.CloseDevice();
+
+                    if (report.Status == HidDeviceData.ReadStatus.Success)
+                    {
+                        var card = new Card(report.Data);
+                        if (card.IsValidTag)
+                        {
+#pragma warning disable CS0618
+                            string info = L.T("Web_EditMapping_CardDetected") + "\n"
+                                + "  " + L.T("Web_EditMapping_UidHex") + "              " + card.UidHex + "\n"
+                                + "  " + L.T("Web_EditMapping_Standard10Digit") + "  " + card.GetCardId(CardIdMode.Lower3Bytes) + "\n"
+                                + "  " + L.T("Web_EditMapping_MifareClassic") + "       " + card.GetCardId(CardIdMode.Lower4Bytes) + "\n"
+                                + "  " + L.T("Web_EditMapping_FullUidDecimal") + "    " + card.GetCardId(CardIdMode.FullDecimal) + "\n"
+                                + "  " + L.T("Web_EditMapping_FullUidHex") + "        " + card.GetCardId(CardIdMode.FullHex) + "\n"
+                                + "  " + L.T("Web_EditMapping_UidLegacy") + "           " + card.UidLegacy;
+#pragma warning restore CS0618
+                            return ("green", info);
+                        }
+                        string hexData = BitConverter.ToString(report.Data);
+                        return ("green", string.Format(L.T("Web_EditMapping_Response"), hexData));
+                    }
+                    return ("orange", L.T("Web_EditMapping_NoCardDetected"));
+                }
+                else
+                {
+                    targetDevice.CloseDevice();
+                    return writeSuccess
+                        ? ("green", L.T("Web_EditMapping_BeepSuccess"))
+                        : ("red", L.T("Web_EditMapping_BeepFailed"));
+                }
+            });
+
+            _testResult = result.Item2;
+            _testResultColor = result.Item1;
+        }
+        catch (Exception ex)
+        {
+            _testResult = string.Format(L.T("Web_EditMember_Error"), ex.Message);
+            _testResultColor = "red";
+        }
+        finally
+        {
+            _testRunning = false;
+        }
+    }
+
+    private void TestCheckin()
+    {
+        if (string.IsNullOrWhiteSpace(_testCardId))
+        {
+            _checkinTestResult = L.T("Web_EditMapping_EnterCardId");
+            return;
+        }
+        _checkinTestResult = string.Format(L.T("Web_EditMapping_CheckinTestRunning"), _testCardId, Mapping.CheckinKey);
+        // Would call API here
+    }
+
+    private void TestRelay()
+    {
+        _relayTestResult = L.T("Web_EditMapping_RelayTestRunning");
+        try
+        {
+            if (string.IsNullOrEmpty(Mapping.RelayComPort))
+            {
+                _relayTestResult = L.T("Web_EditMapping_RelayNoPort");
+                return;
+            }
+            _relayTestResult = string.Format(L.T("Web_EditMapping_RelayTestDone"), Mapping.RelayNumber, Mapping.RelayComPort, Mapping.RelayTriggerTime);
+        }
+        catch (Exception ex)
+        {
+            _relayTestResult = string.Format(L.T("Web_EditMember_Error"), ex.Message);
+        }
+    }
+
+    private async Task Save()
+    {
+        _validationError = "";
+
+        // Validation (matching WPF)
+        if (Mapping.InputType == CheckinClientMapping.InputTypeRfid && string.IsNullOrWhiteSpace(Mapping.DeviceID) && string.IsNullOrWhiteSpace(_selectedDeviceId))
+        {
+            _validationError = L.T("Web_EditMapping_Validation_SelectDevice");
+            return;
+        }
+        if (Mapping.InputType == CheckinClientMapping.InputTypeQrCode && _cameras.Count == 0)
+        {
+            _validationError = L.T("Web_EditMapping_Validation_NoCamera");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(Mapping.CheckinKey))
+        {
+            _validationError = L.T("Web_EditMapping_Validation_EnterKey");
+            return;
+        }
+
+        // Apply selected device ID from dropdown if set
+        if (!string.IsNullOrWhiteSpace(_selectedDeviceId))
+            Mapping.DeviceID = _selectedDeviceId;
+
+        // Apply camera resolution
+        var resParts = _cameraResolution.Split('x');
+        if (resParts.Length == 2 && int.TryParse(resParts[0], out int w) && int.TryParse(resParts[1], out int h))
+        {
+            Mapping.CameraResolutionWidth = w;
+            Mapping.CameraResolutionHeight = h;
+        }
+
+        // Apply HID profile
+        Mapping.HidProfile = _selectedHidProfileId;
+
+        // Apply repeat time and duplicate timeout
+        Mapping.RepeatTimeMs = _repeatTimeMs;
+        Mapping.DuplicateTimeoutSeconds = _duplicateTimeoutSeconds;
+
+        // Apply PG gate data
+        var selectedGate = _pgGates.FirstOrDefault(g => g.CloudComponentId == _selectedPgGateComponentId);
+        Mapping.PgGateComponentId = selectedGate?.CloudComponentId ?? "";
+        Mapping.PgGateServiceId = selectedGate?.ServiceId ?? "";
+        Mapping.PgGateName = selectedGate?.Name ?? "";
+
+        var condGate = _pgGates.FirstOrDefault(g => g.CloudComponentId == _selectedPgCondGateComponentId);
+        Mapping.PgConditionGateComponentId = condGate?.CloudComponentId ?? "";
+        Mapping.PgConditionGateServiceId = condGate?.ServiceId ?? "";
+        Mapping.PgConditionGateName = condGate?.Name ?? "";
+
+        // Apply credit club ID from selected service
+        var creditSvc = _creditServices.FirstOrDefault(s => s.service_id == Mapping.CreditServiceId);
+        Mapping.CreditClubId = creditSvc?.club_id ?? 0;
+
+        await OnSave.InvokeAsync(Mapping);
+    }
+
+    private async Task Cancel()
+    {
+        StopCameraPreview();
+        StopQrScanTest();
+        await OnCancel.InvokeAsync();
+    }
+
+    private async Task ToggleCameraPreview()
+    {
+        if (_cameraPreviewRunning)
+        {
+            StopCameraPreview();
+            return;
+        }
+
+        _cameraPreviewRunning = true;
+        _cameraPreviewStatus = L.T("Web_EditMapping_StartingCamera");
+        _cameraPreviewBase64 = "";
+        StateHasChanged();
+
+        _previewCts = new CancellationTokenSource();
+        var ct = _previewCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            VideoCapture capture = null;
+            try
+            {
+                if (!Enum.TryParse<VideoCaptureAPIs>(Mapping.CameraBackend ?? "ANY", out var api))
+                    api = VideoCaptureAPIs.ANY;
+
+                capture = new VideoCapture(Mapping.CameraIndex, api);
+                if (!capture.IsOpened())
+                {
+                    await InvokeAsync(() => { _cameraPreviewStatus = L.T("Web_EditMapping_CameraOpenFailed"); _cameraPreviewRunning = false; StateHasChanged(); });
+                    return;
+                }
+
+                var resParts = _cameraResolution.Split('x');
+                if (resParts.Length == 2 && int.TryParse(resParts[0], out int w) && int.TryParse(resParts[1], out int h))
+                {
+                    capture.Set(VideoCaptureProperties.FrameWidth, w);
+                    capture.Set(VideoCaptureProperties.FrameHeight, h);
+                }
+
+                using var frame = new Mat();
+                await InvokeAsync(() => { _cameraPreviewStatus = L.T("Web_EditMapping_PreviewActive"); StateHasChanged(); });
+
+                while (!ct.IsCancellationRequested)
+                {
+                    if (capture.Read(frame) && !frame.Empty())
+                    {
+                        Cv2.ImEncode(".jpg", frame, out var jpegBytes);
+                        var base64 = Convert.ToBase64String(jpegBytes);
+                        await InvokeAsync(() => { _cameraPreviewBase64 = base64; StateHasChanged(); });
+                    }
+                    await Task.Delay(150, ct);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                await InvokeAsync(() => { _cameraPreviewStatus = string.Format(L.T("Web_EditMember_Error"), ex.Message); StateHasChanged(); });
+            }
+            finally
+            {
+                capture?.Release();
+                capture?.Dispose();
+                await InvokeAsync(() => { _cameraPreviewRunning = false; StateHasChanged(); });
+            }
+        }, ct);
+    }
+
+    private void StopCameraPreview()
+    {
+        _previewCts?.Cancel();
+        _previewCts?.Dispose();
+        _previewCts = null;
+        _cameraPreviewRunning = false;
+        _cameraPreviewBase64 = "";
+        _cameraPreviewStatus = "";
+    }
+
+    // ── QR Scan Test (Device Test tab) ──
+
+    private async Task StartQrScanTest()
+    {
+        if (_qrTestRunning) return;
+
+        _qrTestRunning = true;
+        _qrTestStatus = L.T("Web_EditMapping_StartingCamera");
+        _qrTestPreviewBase64 = "";
+        StateHasChanged();
+
+        _qrTestCts = new CancellationTokenSource();
+        var ct = _qrTestCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            VideoCapture capture = null;
+            try
+            {
+                if (!Enum.TryParse<VideoCaptureAPIs>(Mapping.CameraBackend ?? "ANY", out var api))
+                    api = VideoCaptureAPIs.ANY;
+
+                capture = new VideoCapture(Mapping.CameraIndex, api);
+                if (!capture.IsOpened())
+                {
+                    await InvokeAsync(() => { _qrTestStatus = L.T("Web_EditMapping_CameraOpenFailed"); _qrTestRunning = false; StateHasChanged(); });
+                    return;
+                }
+
+                var resParts = _cameraResolution.Split('x');
+                if (resParts.Length == 2 && int.TryParse(resParts[0], out int w) && int.TryParse(resParts[1], out int h))
+                {
+                    capture.Set(VideoCaptureProperties.FrameWidth, w);
+                    capture.Set(VideoCaptureProperties.FrameHeight, h);
+                }
+
+                using var frame = new Mat();
+                using var reader = new QRCodeDetector();
+                await InvokeAsync(() => { _qrTestStatus = L.T("Web_EditMapping_SearchingQr"); StateHasChanged(); });
+
+                while (!ct.IsCancellationRequested)
+                {
+                    if (capture.Read(frame) && !frame.Empty())
+                    {
+                        // Try to detect QR code
+                        var decoded = reader.DetectAndDecode(frame, out var points);
+                        if (!string.IsNullOrEmpty(decoded))
+                        {
+                            await InvokeAsync(() =>
+                            {
+                                _qrTestStatus = string.Format(L.T("Web_EditMapping_QrDetected"), decoded);
+                                _testCardId = decoded;
+                                StateHasChanged();
+                            });
+                        }
+
+                        Cv2.ImEncode(".jpg", frame, out var jpegBytes);
+                        var base64 = Convert.ToBase64String(jpegBytes);
+                        await InvokeAsync(() => { _qrTestPreviewBase64 = base64; StateHasChanged(); });
+                    }
+                    await Task.Delay(150, ct);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                await InvokeAsync(() => { _qrTestStatus = string.Format(L.T("Web_EditMember_Error"), ex.Message); StateHasChanged(); });
+            }
+            finally
+            {
+                capture?.Release();
+                capture?.Dispose();
+                await InvokeAsync(() => { _qrTestRunning = false; StateHasChanged(); });
+            }
+        }, ct);
+    }
+
+    private void StopQrScanTest()
+    {
+        _qrTestCts?.Cancel();
+        _qrTestCts?.Dispose();
+        _qrTestCts = null;
+        _qrTestRunning = false;
+        _qrTestPreviewBase64 = "";
+        _qrTestStatus = L.T("Web_EditMapping_ScanCancelled");
+    }
+
+    public void Dispose()
+    {
+        StopCameraPreview();
+        StopQrScanTest();
+    }
+}

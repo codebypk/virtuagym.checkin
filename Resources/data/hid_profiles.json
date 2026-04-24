@@ -1,0 +1,8 @@
+[
+  {
+    "ProfileId": "wCopy_NS122",
+    "DisplayName": "wCopy NS122 (USB HID)",
+    "ReadCommand": "01 01 13 34 00 FF 00 65 05 1E 48 E8 01 00 81 01 18 01 64 FE",
+    "BeepCommand": "01 01 0F 36 00 FF 00 40 50 04 05 01 01 01 1E FE",
+  }
+]

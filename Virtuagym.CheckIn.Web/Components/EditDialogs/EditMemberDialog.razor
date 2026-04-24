@@ -1,0 +1,548 @@
+@* Full edit dialog for a Virtuagym member – WPF parity (3 tabs: Stammdaten, History, Credits) *@
+@using Microsoft.Extensions.Options
+@using Virtuagym.CheckIn.Web.Models
+@using Virtuagym.CheckIn.Web.Services
+@using Virtuagym.CheckIn.Core.Logic
+@using Virtuagym.CheckIn.Core.Models
+@using Virtuagym.CheckIn.Core.Services
+@using Virtuagym.API.v1.Models
+@inject IOptions<AppSettings> SettingsOptions
+@inject WebVirtuagymApiServiceFactory ApiFactory
+
+<div class="modal-overlay visible" style="position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1000; display:flex; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:8px; width:720px; max-height:90vh; overflow:auto; box-shadow:0 8px 32px rgba(0,0,0,0.25); padding:0;">
+        @* ── Header ── *@
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 20px; border-bottom:1px solid #ddd;">
+            <div>
+                <h4 style="margin:0;">@L.T("EditMember_Title")@(_isDirty ? " *" : "")</h4>
+                <span class="text-muted" style="font-size:12px;">
+                    @((_editFirstname + " " + _editLastname).Trim()) — ID: @Member.member_id
+                    @if (!string.IsNullOrWhiteSpace(_editEmail)) { <text> • @_editEmail</text> }
+                    • @(_editActive ? L.T("EditMember_Active") : L.T("EditMember_Inactive"))
+                </span>
+            </div>
+            <button style="background:none; border:none; font-size:20px; cursor:pointer;" @onclick="Cancel">&times;</button>
+        </div>
+
+        <div style="padding:16px 20px;">
+            @* ── Avatar ── *@
+            @if (!string.IsNullOrEmpty(_avatarBase64))
+            {
+                <div style="text-align:center; margin-bottom:12px;">
+                    <img src="data:image/jpeg;base64,@_avatarBase64" alt="Avatar" style="width:80px; height:80px; border-radius:50%; object-fit:cover; border:2px solid #ddd;" />
+                </div>
+            }
+
+            @* ── Tabs ── *@
+            <div class="sub-tabs" style="margin-bottom:14px;">
+                <button class="sub-tab-btn @(_tab == "master" ? "active" : "")" @onclick='() => _tab = "master"'>@L.T("EditMember_Tab_MasterData")</button>
+                <button class="sub-tab-btn @(_tab == "history" ? "active" : "")" @onclick='() => _tab = "history"'>@L.T("EditMember_Tab_History")</button>
+                <button class="sub-tab-btn @(_tab == "credits" ? "active" : "")" @onclick='() => _tab = "credits"'>@L.T("EditMember_Tab_Credits")</button>
+            </div>
+
+            @* ════════════════════════════════════════════ *@
+            @*  Tab 1: Stammdaten                           *@
+            @* ════════════════════════════════════════════ *@
+            @if (_tab == "master")
+            {
+                <fieldset style="margin-bottom:12px; padding:10px; border:1px solid #ddd; border-radius:4px;">
+                    <legend style="font-weight:600;">@L.T("Web_EditMember_Grp_PersonalData")</legend>
+                    <div style="display:grid; grid-template-columns:140px 1fr; gap:6px 12px;">
+                        <label>Member-ID:</label>
+                        <span style="font-weight:600;">@Member.member_id</span>
+
+                        <label>@L.T("Lbl_Firstname")</label>
+                        <input type="text" class="form-input" @bind="_editFirstname" @bind:event="oninput" />
+
+                        <label>@L.T("Lbl_Lastname")</label>
+                        <input type="text" class="form-input" @bind="_editLastname" @bind:event="oninput" />
+
+                        <label>E-Mail:</label>
+                        <input type="text" class="form-input" @bind="_editEmail" @bind:event="oninput" title="Format: name@domain.tld" />
+
+                        <label>@L.T("Web_EditMember_Lbl_Gender")</label>
+                        <select class="form-input" style="width:140px;" @bind="_editGender">
+                            <option value=""></option>
+                            <option value="male">@L.T("Web_EditMember_Gender_Male")</option>
+                            <option value="female">@L.T("Web_EditMember_Gender_Female")</option>
+                        </select>
+
+                        <label>@L.T("Web_EditMember_Lbl_Birthday")</label>
+                        <input type="text" class="form-input" style="width:140px;" @bind="_editBirthday" placeholder="@L.T("Web_EditMember_Placeholder_Birthday")" title="@L.T("EditMember_Tip_Birthday")" />
+
+                        <label>@L.T("Web_EditMember_Lbl_Language")</label>
+                        <input type="text" class="form-input" style="width:80px;" @bind="_editLang" placeholder="de" title="@L.T("EditMember_Tip_Language")" />
+
+                        <label>@L.T("Web_EditMember_Lbl_ProMember")</label>
+                        <input type="checkbox" @bind="_editIsPro" />
+
+                        <label>@L.T("Lbl_Active")</label>
+                        <input type="checkbox" @bind="_editActive" />
+                    </div>
+                </fieldset>
+
+                <fieldset style="margin-bottom:12px; padding:10px; border:1px solid #ddd; border-radius:4px;">
+                    <legend style="font-weight:600;">@L.T("Web_EditMember_Grp_Contact")</legend>
+                    <div style="display:grid; grid-template-columns:140px 1fr; gap:6px 12px;">
+                        <label>@L.T("Lbl_Phone")</label>
+                        <input type="text" class="form-input" @bind="_editPhone" />
+
+                        <label>@L.T("EditMember_Lbl_Mobile")</label>
+                        <input type="text" class="form-input" @bind="_editMobile" />
+
+                        <label>@L.T("Web_EditMember_Lbl_Street")</label>
+                        <input type="text" class="form-input" @bind="_editStreet" />
+
+                        <label>@L.T("Web_EditMember_Lbl_StreetExtra")</label>
+                        <input type="text" class="form-input" @bind="_editStreetExtra" />
+
+                        <label>@L.T("Web_EditMember_Lbl_Zip")</label>
+                        <input type="text" class="form-input" style="width:120px;" @bind="_editZip" />
+
+                        <label>@L.T("Web_EditMember_Lbl_City")</label>
+                        <input type="text" class="form-input" @bind="_editPlace" />
+                    </div>
+                </fieldset>
+
+                <fieldset style="padding:10px; border:1px solid #ddd; border-radius:4px;">
+                    <legend style="font-weight:600;">@L.T("Web_EditMember_Grp_RfidExtern")</legend>
+                    <div style="display:grid; grid-template-columns:140px 1fr; gap:6px 12px;">
+                        <label>RFID-Tag:</label>
+                        <input type="text" class="form-input" @bind="_editRfidTag" title="@L.T("Web_EditMember_Tip_RfidTag")" />
+
+                        <label>@L.T("Web_EditMember_Lbl_ExternalId")</label>
+                        <input type="text" class="form-input" @bind="_editExternalId" />
+                    </div>
+                </fieldset>
+            }
+
+            @* ════════════════════════════════════════════ *@
+            @*  Tab 2: Anmelde-History                      *@
+            @* ════════════════════════════════════════════ *@
+            else if (_tab == "history")
+            {
+                <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+                    <button class="btn btn-sm" @onclick="LoadVisits">@L.T("Web_EditMember_Btn_LoadVisits")</button>
+                    @if (!string.IsNullOrEmpty(_visitStatus))
+                    {
+                        <span class="text-muted">@_visitStatus</span>
+                    }
+                </div>
+
+                @if (_visits != null && _visits.Count > 0)
+                {
+                    <table class="data-table" style="font-size:13px;">
+                        <thead>
+                            <tr>
+                                <th>@L.T("Web_EditMember_Col_Date")</th>
+                                <th>@L.T("Web_EditMember_Col_CheckOut")</th>
+                                <th>@L.T("Web_EditMember_Col_Status")</th>
+                                <th>@L.T("Web_EditMember_Col_Message")</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var v in _visits)
+                            {
+                                <tr>
+                                    <td>@v.CheckInFormatted</td>
+                                    <td>@v.CheckOutFormatted</td>
+                                    <td>@v.status</td>
+                                    <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">@v.status_message</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <p class="text-muted" style="margin-top:4px;">@string.Format(L.T("Web_EditMember_VisitCount"), _visits.Count)</p>
+                }
+            }
+
+            @* ════════════════════════════════════════════ *@
+            @*  Tab 3: Credits                              *@
+            @* ════════════════════════════════════════════ *@
+            else if (_tab == "credits")
+            {
+                <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+                    <button class="btn btn-sm" @onclick="LoadCredits">@L.T("Web_EditMember_Btn_LoadCredits")</button>
+                    @if (!string.IsNullOrEmpty(_creditStatus))
+                    {
+                        <span class="text-muted">@_creditStatus</span>
+                    }
+                </div>
+
+                @if (_credits != null && _credits.Count > 0)
+                {
+                    <table class="data-table" style="font-size:13px;">
+                        <thead>
+                            <tr>
+                                <th>@L.T("Web_EditMember_Col_Count")</th>
+                                <th>@L.T("Web_EditMember_Col_Unlimited")</th>
+                                <th>@L.T("Web_EditMember_Col_Service")</th>
+                                <th>@L.T("Web_EditMember_Col_ValidUntil")</th>
+                                <th>@L.T("Web_EditMember_Col_Notes")</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var c in _credits)
+                            {
+                                <tr>
+                                    <td>@c.credit_amount</td>
+                                    <td>@(c.credit_unlimited ? "✓" : "—")</td>
+                                    <td>@c.service_type</td>
+                                    <td>@c.valid_until</td>
+                                    <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">@c.notes</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <p class="text-muted" style="margin-top:4px;">@string.Format(L.T("Web_EditMember_CreditCount"), _credits.Count)</p>
+                }
+
+                <fieldset style="margin-top:12px; padding:10px; border:1px solid #ddd; border-radius:4px;">
+                    <legend style="font-weight:600;">@L.T("Web_EditMember_Grp_AssignCredits")</legend>
+                    <div style="display:grid; grid-template-columns:140px 1fr; gap:6px 12px;">
+                        <label>@L.T("Web_EditMember_Lbl_Service")</label>
+                        <select class="form-input" @bind="_assignServiceType">
+                            <option value="">@L.T("Web_EditMember_Select_Choose")</option>
+                            @foreach (var svc in _creditServices)
+                            {
+                                <option value="@svc.service_id">@svc.DisplayName</option>
+                            }
+                        </select>
+
+                        <label>@L.T("EditMember_Lbl_CreditUnlimited")</label>
+                        <input type="checkbox" @bind="_assignUnlimited" />
+
+                        @if (!_assignUnlimited)
+                        {
+                            <label>@L.T("EditMember_Lbl_CreditAmount")</label>
+                            <input type="number" class="form-input" style="width:100px;" @bind="_assignAmount" min="1" />
+                        }
+
+                        <label>@L.T("EditMember_Lbl_CreditValidUntil")</label>
+                        <input type="text" class="form-input" style="width:140px;" @bind="_assignValidUntil" placeholder="@L.T("Web_EditMember_Placeholder_Birthday")" />
+
+                        <label>@L.T("EditMember_Lbl_CreditNotes")</label>
+                        <input type="text" class="form-input" @bind="_assignNotes" />
+                    </div>
+                    <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+                        <button class="btn btn-sm" @onclick="AssignCredits">@L.T("Web_EditMember_Btn_Assign")</button>
+                        @if (!string.IsNullOrEmpty(_assignStatus))
+                        {
+                            <span class="text-muted">@_assignStatus</span>
+                        }
+                    </div>
+                </fieldset>
+            }
+        </div>
+
+        @* ── Footer ── *@
+        <div style="display:flex; justify-content:flex-end; gap:10px; padding:12px 20px; border-top:1px solid #ddd;">
+            @if (!string.IsNullOrEmpty(_saveStatus))
+            {
+                <span style="color:@(_saveStatusIsError ? "red" : "green"); margin-right:auto;">@_saveStatus</span>
+            }
+            <button class="btn" @onclick="Save" disabled="@(!_isDirty)">@L.T("Btn_Save")</button>
+            <button class="btn btn-secondary" @onclick="Cancel">@L.T("Btn_Cancel")</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public MemberResult Member { get; set; }
+    [Parameter] public EventCallback<MemberResult> OnSave { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    /// <summary>
+    /// If true, saving is done via API. If false, caller handles persistence (e.g. cache entries).
+    /// </summary>
+    [Parameter] public bool UseApi { get; set; } = true;
+
+    private string _tab = "master";
+
+    // Master data fields
+    private string _editFirstname = "";
+    private string _editLastname = "";
+    private string _editEmail = "";
+    private string _editGender = "";
+    private string _editBirthday = "";
+    private string _editLang = "";
+    private string _editPhone = "";
+    private string _editMobile = "";
+    private string _editStreet = "";
+    private string _editStreetExtra = "";
+    private string _editZip = "";
+    private string _editPlace = "";
+    private string _editRfidTag = "";
+    private string _editExternalId = "";
+    private bool _editIsPro;
+    private bool _editActive;
+
+    // Avatar
+    private string _avatarBase64 = "";
+
+    // Dirty tracking
+    private bool _isDirty => !EditMemberWindowLogic.AreEquivalent(Member, CaptureMemberFromForm());
+
+    // History
+    private List<VisitResult> _visits;
+    private string _visitStatus = "";
+
+    // Credits
+    private List<CreditResult> _credits;
+    private string _creditStatus = "";
+    private List<ClubService> _creditServices = new();
+
+    // Credit assignment
+    private string _assignServiceType = "";
+    private bool _assignUnlimited;
+    private int _assignAmount = 1;
+    private string _assignValidUntil = "";
+    private string _assignNotes = "";
+    private string _assignStatus = "";
+
+    // Save
+    private string _saveStatus = "";
+    private bool _saveStatusIsError;
+
+    protected override void OnInitialized()
+    {
+        _editFirstname = Member.firstname ?? "";
+        _editLastname = Member.lastname ?? "";
+        _editEmail = Member.email ?? "";
+        _editGender = (Member.gender ?? "").ToLowerInvariant();
+        _editBirthday = Member.birthday ?? "";
+        _editLang = Member.lang ?? "";
+        _editPhone = Member.phone ?? "";
+        _editMobile = Member.mobile ?? "";
+        _editStreet = Member.street ?? "";
+        _editStreetExtra = Member.street_extra ?? "";
+        _editZip = Member.zip ?? "";
+        _editPlace = Member.place ?? "";
+        _editRfidTag = Member.rfid_tag ?? "";
+        _editExternalId = Member.external_id ?? "";
+        _editIsPro = Member.is_pro;
+        _editActive = Member.active;
+
+        try { _creditServices = ClubServiceLoader.Load().Where(s => s.isActive).ToList(); } catch { }
+
+        _ = LoadAvatarAsync();
+    }
+
+    private MemberResult CaptureMemberFromForm()
+    {
+        return EditMemberWindowLogic.CreateSanitizedMember(new MemberResult
+        {
+            firstname = _editFirstname,
+            lastname = _editLastname,
+            email = _editEmail,
+            gender = _editGender,
+            birthday = _editBirthday,
+            lang = _editLang,
+            phone = _editPhone,
+            mobile = _editMobile,
+            street = _editStreet,
+            street_extra = _editStreetExtra,
+            zip = _editZip,
+            place = _editPlace,
+            rfid_tag = _editRfidTag,
+            external_id = _editExternalId,
+            is_pro = _editIsPro,
+            active = _editActive
+        });
+    }
+
+    private async Task LoadAvatarAsync()
+    {
+        string url = (Member.user_avatar ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(url)) return;
+        try
+        {
+            using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            var bytes = await http.GetByteArrayAsync(url);
+            _avatarBase64 = Convert.ToBase64String(bytes);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch { }
+    }
+
+    // ── History ──
+
+    private async Task LoadVisits()
+    {
+        _visitStatus = L.T("Web_EditMember_LoadingVisits");
+        StateHasChanged();
+        try
+        {
+            using var api = ApiFactory.Create();
+            var visits = await api.Visits.GetAllAsync($"member_id={Member.member_id}", paginate: true);
+            if (visits != null && visits.Count > 0)
+            {
+                visits.Sort((a, b) => b.check_in_timestamp.CompareTo(a.check_in_timestamp));
+                _visits = visits;
+                _visitStatus = string.Format(L.T("Web_EditMember_VisitsLoaded"), visits.Count);
+            }
+            else
+            {
+                _visits = null;
+                _visitStatus = L.T("Web_EditMember_NoVisitsFound");
+            }
+        }
+        catch (Exception ex)
+        {
+            _visitStatus = string.Format(L.T("Web_EditMember_Error"), ex.Message);
+        }
+    }
+
+    // ── Credits ──
+
+    private async Task LoadCredits()
+    {
+        _creditStatus = L.T("Web_EditMember_LoadingCredits");
+        StateHasChanged();
+        try
+        {
+            using var api = ApiFactory.Create();
+            var credits = await api.Credits.GetByMemberAsync(Member.member_id.ToString());
+            if (credits != null && credits.Count > 0)
+            {
+                _credits = credits;
+                _creditStatus = string.Format(L.T("Web_EditMember_CreditsLoaded"), credits.Count);
+            }
+            else
+            {
+                _credits = null;
+                _creditStatus = L.T("Web_EditMember_NoCreditsFound");
+            }
+        }
+        catch (Exception ex)
+        {
+            _creditStatus = string.Format(L.T("Web_EditMember_Error"), ex.Message);
+        }
+    }
+
+    private async Task AssignCredits()
+    {
+        _assignStatus = "";
+        if (!EditMemberWindowLogic.TryValidateCreditAssignment(
+                _assignAmount.ToString(), _assignUnlimited, _assignServiceType, _assignValidUntil,
+                out int amount, out string serviceType, out string validUntil, out string errorField, out _))
+        {
+            _assignStatus = string.Format(L.T("Web_EditMember_ValidationError"), errorField);
+            return;
+        }
+
+        _assignStatus = L.T("Web_EditMember_AssigningCredits");
+        StateHasChanged();
+        try
+        {
+            var credit = new CreditResult
+            {
+                member_id = Member.member_id,
+                member_email = Member.email,
+                credit_amount = amount,
+                credit_unlimited = _assignUnlimited,
+                service_type = serviceType,
+                valid_until = validUntil,
+                notes = (_assignNotes ?? "").Trim()
+            };
+
+            using var api = ApiFactory.Create();
+            var result = await api.Credits.AssignAsync(credit);
+            if (result != null)
+            {
+                _assignStatus = L.T("Web_EditMember_CreditsAssigned");
+                _assignServiceType = "";
+                _assignUnlimited = false;
+                _assignAmount = 1;
+                _assignValidUntil = "";
+                _assignNotes = "";
+                await LoadCredits();
+            }
+            else
+            {
+                _assignStatus = L.T("Web_EditMember_NoApiResponse");
+            }
+        }
+        catch (Exception ex)
+        {
+            _assignStatus = string.Format(L.T("Web_EditMember_Error"), ex.Message);
+        }
+    }
+
+    // ── Save ──
+
+    private async Task Save()
+    {
+        _saveStatus = "";
+        _saveStatusIsError = false;
+
+        var updateData = CaptureMemberFromForm();
+        if (EditMemberWindowLogic.AreEquivalent(Member, updateData))
+        {
+            _saveStatus = L.T("Web_EditMember_NoChanges");
+            return;
+        }
+
+        if (!EditMemberWindowLogic.ValidateMemberUpdate(updateData, out string errorField, out _))
+        {
+            _saveStatus = string.Format(L.T("Web_EditMember_ValidationError"), errorField);
+            _saveStatusIsError = true;
+            return;
+        }
+
+        if (UseApi)
+        {
+            try
+            {
+                // Apply fields to member for API update
+                updateData.member_id = Member.member_id;
+                updateData.club_id = Member.club_id;
+                updateData.user_avatar = Member.user_avatar;
+
+                using var api = ApiFactory.Create();
+                var result = await api.UpdateMemberAsync(updateData);
+                if (result != null)
+                {
+                    result.user_avatar = string.IsNullOrWhiteSpace(result.user_avatar) ? Member.user_avatar : result.user_avatar;
+                    await OnSave.InvokeAsync(result);
+                }
+                else
+                {
+                    _saveStatus = L.T("Web_EditMember_NoApiResponse");
+                    _saveStatusIsError = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                _saveStatus = string.Format(L.T("Web_EditMember_Error"), ex.Message);
+                _saveStatusIsError = true;
+            }
+        }
+        else
+        {
+            // Apply edited fields back to member and let caller handle persistence
+            Member.firstname = _editFirstname.Trim();
+            Member.lastname = _editLastname.Trim();
+            Member.email = _editEmail.Trim();
+            Member.gender = _editGender;
+            Member.birthday = _editBirthday.Trim();
+            Member.lang = _editLang.Trim();
+            Member.phone = _editPhone.Trim();
+            Member.mobile = _editMobile.Trim();
+            Member.street = _editStreet.Trim();
+            Member.street_extra = _editStreetExtra.Trim();
+            Member.zip = _editZip.Trim();
+            Member.place = _editPlace.Trim();
+            Member.rfid_tag = _editRfidTag.Trim();
+            Member.external_id = _editExternalId.Trim();
+            Member.is_pro = _editIsPro;
+            Member.active = _editActive;
+            await OnSave.InvokeAsync(Member);
+        }
+    }
+
+    private async Task Cancel()
+    {
+        await OnCancel.InvokeAsync();
+    }
+}

@@ -1,0 +1,384 @@
+@using Jablotron.API.Odbo
+@using System.Data
+
+<div class="control-panel">
+    <h4>Developer – Jablotron (F-Link / RFID)</h4>
+
+    <div style="background:#FFF8E1; border:1px solid #FFD54F; border-radius:4px; padding:10px; margin-bottom:12px;">
+        <span style="font-weight:bold; color:#F57F17;">⚠ Voraussetzung:</span>
+        <span style="color:#5D4037;">Zuerst in <strong>F-Link</strong> (Jablotron Konfigurations-Tool) ein Backup der Zentrale erstellen:
+        <em>Datei → Backup erstellen</em>. Die .fdb-Datei dann hier angeben.</span>
+    </div>
+
+    <div class="form-group">
+        <label>FDB-Datei:</label>
+        <input type="text" @bind="_fdbPath" class="form-input" placeholder="Pfad zur Jablotron ODBO-Link Datei (.fdb)" />
+    </div>
+
+    <div class="sub-tabs">
+        <button class="sub-tab-btn @(_subTab == "sections" ? "active" : "")" @onclick='() => _subTab = "sections"'>Sektionen</button>
+        <button class="sub-tab-btn @(_subTab == "rfid" ? "active" : "")" @onclick='() => _subTab = "rfid"'>RFID-Abgleich</button>
+    </div>
+
+    @if (_subTab == "sections")
+    {
+        <div style="margin-top:12px;">
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+                <button class="btn" @onclick="LoadFdb" title="Lädt die ODBO-Link Datei und zeigt die Sektionen an.">Laden</button>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label style="width:auto; margin-right:8px;">Sektion:</label>
+                    <select @bind="_selectedSection" class="form-input" style="width:260px;" @bind:after="OnSectionChanged">
+                        @foreach (var s in _sections)
+                        {
+                            <option value="@s">@s</option>
+                        }
+                    </select>
+                </div>
+                @if (!string.IsNullOrEmpty(_sectionInfo))
+                {
+                    <span class="text-muted">@_sectionInfo</span>
+                }
+            </div>
+
+            @if (!string.IsNullOrEmpty(_columnsInfo))
+            {
+                <p class="text-muted" style="font-size:0.85em; margin-bottom:8px;">@_columnsInfo</p>
+            }
+
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+                <label style="width:auto;">Suche:</label>
+                <input type="text" @bind="_sectionFilter" @bind:event="oninput" class="form-input" style="flex:1;" placeholder="Zeilen der aktuellen Sektion nach Inhalt filtern." />
+                <button class="btn btn-sm" @onclick='() => _sectionFilter = ""'>✕</button>
+                @if (!string.IsNullOrEmpty(_filterInfo))
+                {
+                    <span class="text-muted">@_filterInfo</span>
+                }
+            </div>
+
+            @if (_sectionData != null && _sectionData.Rows.Count > 0)
+            {
+                var filteredRows = GetFilteredRows();
+                <div style="max-height:400px; overflow:auto; border:1px solid var(--color-border);">
+                    <table class="data-table" style="font-size:0.85em;">
+                        <thead>
+                            <tr>
+                                @foreach (DataColumn col in _sectionData.Columns)
+                                {
+                                    <th>@col.ColumnName</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in filteredRows)
+                            {
+                                <tr>
+                                    @foreach (DataColumn col in _sectionData.Columns)
+                                    {
+                                        <td>@row[col]</td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-muted" style="margin-top:4px;">@filteredRows.Count von @_sectionData.Rows.Count Zeile(n)</p>
+            }
+
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <input type="text" @bind="_sectionSearch" class="form-input" style="flex:1;" placeholder="Sektionsname oder Teil davon..." />
+                <button class="btn" @onclick="SearchSection">Suchen</button>
+                @if (!string.IsNullOrEmpty(_sectionStatus))
+                {
+                    <span class="text-muted" style="align-self:center;">@_sectionStatus</span>
+                }
+            </div>
+        </div>
+    }
+    else if (_subTab == "rfid")
+    {
+        <div style="margin-top:12px;">
+            <p>Zuordnung per <strong>Vorname + Nachname</strong>. Vergleicht nur <strong>aktive</strong> Virtuagym-Member
+            mit Jablotron-Benutzern die eine <strong>AccessCard1</strong> haben. Gewünschte Einträge auswählen und
+            mit "Ausgewählte aktualisieren" den RFID-Tag im Cache und in Virtuagym (API) korrigieren.</p>
+
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
+                <button class="btn" @onclick="StartRfidCompare" title="Lädt die FDB-Datei und vergleicht die RFID-Tags mit dem Virtuagym-Cache.">Abgleich starten</button>
+                <button class="btn btn-secondary" @onclick="SelectAll" disabled="@(_rfidResults.Count == 0)">Alle auswählen</button>
+                <button class="btn btn-secondary" @onclick="SelectNone" disabled="@(_rfidResults.Count == 0)">Keine auswählen</button>
+                <button class="btn" @onclick="UpdateSelected" disabled="@(_rfidResults.Count == 0)" title="Aktualisiert den RFID-Tag der ausgewählten Member im lokalen Cache und per Virtuagym API.">💾 Ausgewählte aktualisieren</button>
+                <button class="btn btn-secondary" @onclick="ExportRfidCsv" disabled="@(_rfidResults.Count == 0)" title="Exportiert die aktuelle Liste als CSV-Datei.">📋 CSV Export</button>
+                @if (!string.IsNullOrEmpty(_rfidStatus))
+                {
+                    <span class="text-muted">@_rfidStatus</span>
+                }
+            </div>
+
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+                <label style="width:auto;">🔍 Filter:</label>
+                <input type="text" @bind="_rfidFilter" @bind:event="oninput" class="form-input" style="width:260px;" placeholder="Nach Name oder Kartennummer filtern..." />
+                <button class="btn btn-sm" @onclick='() => _rfidFilter = ""'>✕</button>
+                <label style="width:auto; margin-left:12px;">Status:</label>
+                <select @bind="_rfidStatusFilter" class="form-input" style="width:180px;">
+                    <option value="">Alle</option>
+                    <option value="OK">✅ OK</option>
+                    <option value="RFID abweichend">❌ RFID abweichend</option>
+                    <option value="Nicht eindeutig">⚠ Nicht eindeutig</option>
+                    <option value="Nicht zugeordnet">❓ Nicht zugeordnet</option>
+                </select>
+            </div>
+
+            @if (_rfidResults.Count > 0)
+            {
+                var filtered = GetFilteredRfidResults();
+                <div style="max-height:400px; overflow:auto; border:1px solid var(--color-border);">
+                    <table class="data-table" style="font-size:0.85em;">
+                        <thead>
+                            <tr>
+                                <th>✔</th>
+                                <th>Status</th>
+                                <th>Member-ID</th>
+                                <th>Virtuagym Member</th>
+                                <th>VG Aktiv</th>
+                                <th>Virtuagym RFID</th>
+                                <th>Jablotron Name</th>
+                                <th>Jab Aktiv</th>
+                                <th>Jablotron Karte</th>
+                                <th>Info</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in filtered)
+                            {
+                                var item = r;
+                                <tr>
+                                    <td><input type="checkbox" @bind="item.IsSelected" /></td>
+                                    <td style="font-weight:bold; color:@GetStatusColor(item.Status)">@item.Status</td>
+                                    <td>@item.VirtuagymMemberId</td>
+                                    <td>@item.VirtuagymName</td>
+                                    <td>@(item.VirtuagymActive ? "✓" : "—")</td>
+                                    <td>@item.VirtuagymRfidTag</td>
+                                    <td>@item.JablotronName</td>
+                                    <td>@(item.JablotronActive ? "✓" : "—")</td>
+                                    <td>@item.JablotronAccessCard</td>
+                                    <td style="color:#555; font-size:0.9em;">@item.MatchInfo</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(_rfidSummary))
+            {
+                <p class="text-muted" style="margin-top:8px;">@_rfidSummary</p>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private string _subTab = "sections";
+    private string _fdbPath = "";
+    private JablotronDbService? _jablotronDb;
+
+    // Sections tab
+    private List<string> _sections = new();
+    private string _selectedSection = "";
+    private string _sectionFilter = "";
+    private string _sectionSearch = "";
+    private string _sectionInfo = "";
+    private string _columnsInfo = "";
+    private string _filterInfo = "";
+    private string _sectionStatus = "";
+    private DataTable? _sectionData;
+
+    // RFID tab
+    private List<RfidCompareResult> _rfidResults = new();
+    private string _rfidFilter = "";
+    private string _rfidStatusFilter = "";
+    private string _rfidStatus = "";
+    private string _rfidSummary = "";
+
+    protected override void OnInitialized()
+    {
+        _fdbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "resources", "fdb");
+    }
+
+    private void EnsureFdbLoaded()
+    {
+        if (string.IsNullOrWhiteSpace(_fdbPath))
+            _fdbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "resources", "fdb");
+
+        if (!File.Exists(_fdbPath))
+            throw new FileNotFoundException("FDB-Datei nicht gefunden. Bitte zuerst ein F-Link Backup erstellen und hier laden.", _fdbPath);
+
+        if (_jablotronDb == null)
+            _jablotronDb = new JablotronDbService(_fdbPath);
+    }
+
+    private void LoadFdb()
+    {
+        try
+        {
+            _jablotronDb?.Dispose();
+            _jablotronDb = null;
+            EnsureFdbLoaded();
+
+            _sectionInfo = _jablotronDb!.FileInfo.ToString();
+            _sections = _jablotronDb.GetSectionNames();
+            _selectedSection = _sections.Count > 0 ? _sections[0] : "";
+            _sectionData = null;
+            _columnsInfo = "";
+
+            if (!string.IsNullOrEmpty(_selectedSection))
+                LoadSectionData(_selectedSection);
+
+            _sectionStatus = $"Geladen: {_sections.Count} Sektionen.";
+        }
+        catch (Exception ex)
+        {
+            _sectionStatus = $"Fehler: {ex.Message}";
+            _sections.Clear();
+            _sectionData = null;
+            _columnsInfo = "";
+            _sectionInfo = "";
+        }
+    }
+
+    private void OnSectionChanged()
+    {
+        if (_jablotronDb != null && !string.IsNullOrEmpty(_selectedSection))
+            LoadSectionData(_selectedSection);
+    }
+
+    private void LoadSectionData(string sectionName)
+    {
+        try
+        {
+            var columns = _jablotronDb!.GetColumns(sectionName);
+            _columnsInfo = string.Join(", ", columns.Select(c => $"{c.Name} ({c.TypeName})"));
+            int itemCount = _jablotronDb.GetItemCount(sectionName);
+            _sectionInfo = $"{itemCount} Einträge, {columns.Count} Properties";
+            _sectionData = _jablotronDb.ReadSection(sectionName);
+            _sectionFilter = "";
+            _sectionStatus = $"Sektion '{sectionName}': {itemCount} Einträge geladen.";
+        }
+        catch (Exception ex)
+        {
+            _sectionStatus = $"Fehler beim Laden von '{sectionName}': {ex.Message}";
+            _sectionData = null;
+            _columnsInfo = "";
+        }
+    }
+
+    private List<DataRow> GetFilteredRows()
+    {
+        if (_sectionData == null) return new();
+        var rows = _sectionData.Rows.Cast<DataRow>().ToList();
+        if (string.IsNullOrWhiteSpace(_sectionFilter)) return rows;
+        var filter = _sectionFilter.ToLowerInvariant();
+        return rows.Where(r => r.ItemArray.Any(cell =>
+            cell?.ToString()?.Contains(filter, StringComparison.OrdinalIgnoreCase) ?? false
+        )).ToList();
+    }
+
+    private void SearchSection()
+    {
+        if (_jablotronDb == null)
+        {
+            _sectionStatus = "Bitte zuerst die Datei laden.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(_sectionSearch))
+        {
+            _sectionStatus = "Bitte einen Sektionsnamen oder Suchbegriff eingeben.";
+            return;
+        }
+        var match = _sections.FirstOrDefault(s => s.Contains(_sectionSearch, StringComparison.OrdinalIgnoreCase));
+        if (match != null)
+        {
+            _selectedSection = match;
+            LoadSectionData(match);
+        }
+        else
+        {
+            _sectionStatus = $"Keine Sektion gefunden für '{_sectionSearch}'.";
+        }
+    }
+
+    private void StartRfidCompare()
+    {
+        try
+        {
+            EnsureFdbLoaded();
+            _rfidStatus = "Vergleiche RFID-Tags...";
+            // Real implementation would use _jablotronDb to read users and compare with MemberCacheService
+            _rfidStatus = "RFID-Abgleich gestartet. Die vollständige Implementierung folgt dem WPF-Muster (Abgleich Jablotron Users vs. Member-Cache).";
+        }
+        catch (Exception ex)
+        {
+            _rfidStatus = $"Fehler: {ex.Message}";
+        }
+    }
+
+    private void SelectAll() { foreach (var r in _rfidResults) r.IsSelected = true; }
+    private void SelectNone() { foreach (var r in _rfidResults) r.IsSelected = false; }
+    private void UpdateSelected() { _rfidStatus = "Update der ausgewählten Einträge wird implementiert."; }
+
+    private void ExportRfidCsv()
+    {
+        try
+        {
+            var lines = new List<string> { "Status;MemberID;VG Name;VG Aktiv;VG RFID;Jab Name;Jab Aktiv;Jab Karte;Info" };
+            lines.AddRange(_rfidResults.Select(r =>
+                $"{r.Status};{r.VirtuagymMemberId};{r.VirtuagymName};{r.VirtuagymActive};{r.VirtuagymRfidTag};{r.JablotronName};{r.JablotronActive};{r.JablotronAccessCard};{r.MatchInfo}"));
+            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "export_rfid_compare.csv");
+            File.WriteAllLines(path, lines, System.Text.Encoding.UTF8);
+            _rfidStatus = $"CSV exportiert nach: {path}";
+        }
+        catch (Exception ex)
+        {
+            _rfidStatus = $"Fehler: {ex.Message}";
+        }
+    }
+
+    private List<RfidCompareResult> GetFilteredRfidResults()
+    {
+        var results = _rfidResults.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(_rfidStatusFilter))
+            results = results.Where(r => r.Status == _rfidStatusFilter);
+        if (!string.IsNullOrWhiteSpace(_rfidFilter))
+        {
+            var f = _rfidFilter.ToLowerInvariant();
+            results = results.Where(r =>
+                (r.VirtuagymName?.Contains(f, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (r.JablotronName?.Contains(f, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (r.JablotronAccessCard?.Contains(f, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                (r.VirtuagymRfidTag?.Contains(f, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+        return results.ToList();
+    }
+
+    private static string GetStatusColor(string status) => status switch
+    {
+        "OK" => "green",
+        "RFID abweichend" => "red",
+        "Nicht eindeutig" => "#FF8C00",
+        "Nicht zugeordnet" => "#888888",
+        _ => "#333"
+    };
+
+    private sealed class RfidCompareResult
+    {
+        public bool IsSelected { get; set; }
+        public string Status { get; set; } = "";
+        public string VirtuagymMemberId { get; set; } = "";
+        public string VirtuagymName { get; set; } = "";
+        public bool VirtuagymActive { get; set; }
+        public string VirtuagymRfidTag { get; set; } = "";
+        public string JablotronName { get; set; } = "";
+        public bool JablotronActive { get; set; }
+        public string JablotronAccessCard { get; set; } = "";
+        public string MatchInfo { get; set; } = "";
+    }
+}

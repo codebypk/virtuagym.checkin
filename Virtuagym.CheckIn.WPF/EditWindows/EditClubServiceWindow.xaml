@@ -1,0 +1,69 @@
+<Window x:Class="Virtuagym.CheckIn.WPF.EditClubServiceWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Club-Service bearbeiten" Height="399" Width="500"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Club-ID -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock x:Name="lblClubId" Text="Club-ID:" Margin="0,0,0,4"/>
+            <TextBox x:Name="txtClubId" Height="24"/>
+        </StackPanel>
+
+        <!-- Service-ID -->
+        <StackPanel Grid.Row="1" Margin="0,0,0,12">
+            <TextBlock x:Name="lblServiceId" Text="Service-ID:" Margin="0,0,0,4"/>
+            <TextBox x:Name="txtServiceId" Height="24"/>
+            <TextBlock x:Name="lblServiceIdHint" Text="Technische ID f&#252;r die Credit-Pr&#252;fung (z.B. 'feichtinger-fitness-ems')" 
+                       FontSize="10" Foreground="Gray" Margin="0,2,0,0" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- Servicename -->
+        <StackPanel Grid.Row="2" Margin="0,0,0,12">
+            <TextBlock x:Name="lblServicename" Text="Servicename:" Margin="0,0,0,4"/>
+            <TextBox x:Name="txtServicename" Height="24"/>
+            <TextBlock x:Name="lblServicenameHint" Text="Anzeigename der Dienstleistung" 
+                       FontSize="10" Foreground="Gray" Margin="0,2,0,0"/>
+        </StackPanel>
+
+        <!-- Min. Credits -->
+        <StackPanel Grid.Row="3" Margin="0,0,0,12">
+            <TextBlock x:Name="lblMinCredits" Text="Mindestanzahl Credits:" Margin="0,0,0,4"/>
+            <TextBox x:Name="txtMinCredits" Height="24"/>
+            <TextBlock x:Name="lblMinCreditsHint" Text="Erforderliche Credits f&#252;r Check-in (-1 = keine Mindestanforderung)" 
+                       FontSize="10" Foreground="Gray" Margin="0,2,0,0" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- Aktiv -->
+        <StackPanel Grid.Row="4" Margin="0,0,0,12">
+            <CheckBox x:Name="chkIsActive" Content="Service ist aktiv" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Validation Message -->
+        <TextBlock x:Name="txtValidationMessage" Grid.Row="6" 
+                   Foreground="Red" TextWrapping="Wrap" 
+                   Visibility="Collapsed" Margin="0,0,0,10"/>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="btnSave" Content="Speichern" Width="100" Height="30" 
+                    Margin="0,0,10,0" Click="btnSave_Click" IsDefault="True"/>
+            <Button x:Name="btnCancel" Content="Abbrechen" Width="100" Height="30" 
+                    Click="btnCancel_Click" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

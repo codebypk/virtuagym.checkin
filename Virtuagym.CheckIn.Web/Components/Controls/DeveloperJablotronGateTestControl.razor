@@ -1,0 +1,195 @@
+@using Microsoft.Extensions.Options
+@using Virtuagym.CheckIn.Web.Models
+@using Jablotron.API.Services
+@using Virtuagym.CheckIn.Core.Helper
+@using Virtuagym.CheckIn.Core.Services
+@using Virtuagym.API.Serialization
+@inject IOptions<AppSettings> SettingsOptions
+
+<div class="control-panel">
+    <h4>Developer – Gate Test</h4>
+
+    <div class="form-group">
+        <label>Programmable Gate:</label>
+        <select @bind="_selectedGateIndex" class="form-input" style="width:400px;">
+            @for (int i = 0; i < _gates.Count; i++)
+            {
+                var idx = i;
+                <option value="@idx">@_gates[idx].Display</option>
+            }
+        </select>
+    </div>
+    <div class="form-group">
+        <label>Zeit (Sekunden):</label>
+        <input type="number" @bind="_durationSeconds" class="form-input" style="width:120px;" />
+    </div>
+    <div class="form-group">
+        <label>Toggle State:</label>
+        <input type="checkbox" @bind="_toggleState" /> <span>@(_toggleState ? "ON" : "OFF")</span>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:12px;">
+        <button class="btn" @onclick="ReloadGates">Gates neu laden</button>
+        <button class="btn" @onclick="ApplyToggle" disabled="@_isToggling">Toggle testen</button>
+        @if (!string.IsNullOrEmpty(_status))
+        {
+            <span class="text-muted" style="align-self:center;">@_status</span>
+        }
+    </div>
+
+    <p class="text-muted" style="margin-top:16px;">
+        Loads gates from <code>@Constants.JablotronGatesFilePath</code> and controls the selected gate via Jablotron Cloud (ON/OFF).
+        With ON + time &gt; 0, automatically switches back to OFF after timeout.
+    </p>
+</div>
+
+@code {
+    private int _selectedGateIndex = -1;
+    private int _durationSeconds = 3;
+    private bool _toggleState;
+    private bool _isToggling;
+    private string _status = "";
+    private List<GateEntry> _gates = new();
+
+    protected override void OnInitialized()
+    {
+        LoadGatesFromJson();
+    }
+
+    private void LoadGatesFromJson()
+    {
+        try
+        {
+            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Constants.JablotronGatesFilePath);
+            if (!File.Exists(path))
+            {
+                _gates.Clear();
+                _status = "jablotron_gates.json nicht gefunden.";
+                return;
+            }
+
+            var json = File.ReadAllText(path);
+            var serializer = new JsonSerializerAdapter();
+            var rows = serializer.Deserialize<List<Dictionary<string, object>>>(json) ?? new();
+
+            _gates = rows.Select(row => new GateEntry
+            {
+                ServiceId = GetString(row, "service-id"),
+                CloudComponentId = GetString(row, "cloud-component-id"),
+                Name = GetString(row, "name"),
+                CanControl = GetBool(row, "can-control"),
+                NeedAuthorization = GetBool(row, "need-authorization")
+            }).ToList();
+
+            if (_gates.Count > 0) _selectedGateIndex = 0;
+            _status = $"{_gates.Count} Gate(s) geladen.";
+        }
+        catch (Exception ex)
+        {
+            _gates.Clear();
+            _status = $"Fehler: {ex.Message}";
+        }
+    }
+
+    private void ReloadGates()
+    {
+        _gates.Clear();
+        _selectedGateIndex = -1;
+        LoadGatesFromJson();
+    }
+
+    private async Task ApplyToggle()
+    {
+        if (_selectedGateIndex < 0 || _selectedGateIndex >= _gates.Count)
+        {
+            _status = L.T("Web_DevJabGateTest_SelectGate");
+            return;
+        }
+
+        var selected = _gates[_selectedGateIndex];
+        if (!selected.CanControl)
+        {
+            _status = $"Gate '{selected.Name}' is not controllable (CanControl=false).";
+            return;
+        }
+
+        _isToggling = true;
+        var targetState = _toggleState ? "ON" : "OFF";
+        _status = $"Setting gate '{selected.Name}' to {targetState}...";
+        StateHasChanged();
+
+        try
+        {
+            var settings = SettingsOptions.Value;
+            await Task.Run(async () =>
+            {
+                using var client = new JablotronCloudService(
+                    settings.JablotronApiUrl,
+                    settings.JablotronApiUsername,
+                    settings.JablotronApiPassword);
+                client.PerformLogin();
+
+                int? serviceId = null;
+                if (int.TryParse(selected.ServiceId, out var parsedId) && parsedId > 0)
+                    serviceId = parsedId;
+
+                var ok = client.ControlProgrammableGate(serviceId, selected.CloudComponentId, targetState);
+                if (!ok)
+                    throw new InvalidOperationException("Gate control was not successful.");
+
+                await InvokeAsync(() =>
+                {
+                    _status = $"Gate '{selected.Name}' set to {targetState}.";
+                    StateHasChanged();
+                });
+
+                if (_toggleState && _durationSeconds > 0)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(_durationSeconds));
+                    var offOk = client.ControlProgrammableGate(serviceId, selected.CloudComponentId, "OFF");
+                    if (!offOk)
+                        throw new InvalidOperationException("Automatic OFF was not successful.");
+
+                    await InvokeAsync(() =>
+                    {
+                        _toggleState = false;
+                        _status = $"Gate '{selected.Name}' automatically set to OFF after {_durationSeconds}s.";
+                        StateHasChanged();
+                    });
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _status = $"Fehler: {ex.Message}";
+        }
+        finally
+        {
+            _isToggling = false;
+        }
+    }
+
+    private static string GetString(Dictionary<string, object> row, string key)
+    {
+        if (row == null || !row.ContainsKey(key) || row[key] == null) return "";
+        return Convert.ToString(row[key]) ?? "";
+    }
+
+    private static bool GetBool(Dictionary<string, object> row, string key)
+    {
+        if (row == null || !row.ContainsKey(key) || row[key] == null) return false;
+        var value = row[key];
+        if (value is bool b) return b;
+        return bool.TryParse(Convert.ToString(value), out var parsed) && parsed;
+    }
+
+    private sealed class GateEntry
+    {
+        public string ServiceId { get; set; } = "";
+        public string CloudComponentId { get; set; } = "";
+        public string Name { get; set; } = "";
+        public bool CanControl { get; set; }
+        public bool NeedAuthorization { get; set; }
+        public string Display => $"{Name} ({CloudComponentId})";
+    }
+}

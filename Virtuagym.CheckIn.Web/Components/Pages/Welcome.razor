@@ -1,0 +1,254 @@
+@page "/welcome"
+@using Microsoft.Extensions.Options
+@using Virtuagym.CheckIn.Web.Models
+@using Virtuagym.CheckIn.Web.Services
+@using Virtuagym.CheckIn.Core.Abstractions
+@layout Virtuagym.CheckIn.Web.Components.Layout.WelcomeLayout
+@inject IOptions<AppSettings> SettingsOptions
+@inject WebCheckinService CheckinService
+@inject ISoundPlayer SoundPlayer
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="welcome-screen" @onclick="RequestFullscreen">
+    @if (!string.IsNullOrEmpty(_backgroundUrl))
+    {
+        <div class="welcome-background" style="background-image: url('@_backgroundUrl');"></div>
+    }
+
+    @if (_settings.ShowClubLogo && !string.IsNullOrWhiteSpace(_settings.ClubLogoPath))
+    {
+        <img class="club-logo" src="@_settings.ClubLogoPath" alt="Club Logo" />
+    }
+
+    @if (_showLoader)
+    {
+        <div class="welcome-loader">
+            <p>@Virtuagym.CheckIn.Core.Services.L.T("Welcome_PleaseWait")</p>
+            <div class="progress-bar"></div>
+        </div>
+    }
+
+    @if (_showCheckinInfo)
+    {
+        <div class="checkin-info checkin-info-right @_statusCssClass">
+            <div class="avatar-container">
+                <div class="avatar-wrapper">
+                    @if (!string.IsNullOrEmpty(_avatarUrl))
+                    {
+                        <img class="avatar-img" src="@_avatarUrl" alt="Avatar" />
+                    }
+                    else if (_status == "ok")
+                    {
+                        <div class="avatar-placeholder user-icon"></div>
+                    }
+                    else if (_status == "reject")
+                    {
+                        <div class="avatar-placeholder error-icon"></div>
+                    }
+                    else
+                    {
+                        <div class="avatar-placeholder warn-icon"></div>
+                    }
+
+                    @* Overlay status icons (bottom-right on avatar, like WPF) *@
+                    @if (_status == "ok")
+                    {
+                        <div class="avatar-overlay overlay-success">✓</div>
+                    }
+                    else if (_status == "reject")
+                    {
+                        <div class="avatar-overlay overlay-error">✕</div>
+                    }
+                    else if (_status == "doublescan")
+                    {
+                        <div class="avatar-overlay overlay-doublescan">i</div>
+                    }
+                    else if (_status == "warn")
+                    {
+                        <div class="avatar-overlay overlay-warning">⚠</div>
+                    }
+                </div>
+            </div>
+            <h2 class="member-name">@_memberName</h2>
+            @foreach (var line in _statusLines)
+            {
+                <p class="status-text">@line</p>
+            }
+            @if (!string.IsNullOrEmpty(_readerName))
+            {
+                <p class="reader-name">@_readerName</p>
+            }
+        </div>
+    }
+
+    @if (!_showLoader && !_showCheckinInfo)
+    {
+        <div class="idle-hint">
+            <p>@_idleHintText</p>
+        </div>
+    }
+
+    @if (_settings.ShowQrCameraPreviewOnWelcome)
+    {
+        <div class="qr-camera-preview">
+            <div class="qr-camera-header">
+                <span class="qr-icon">⊞</span>
+                <span>QR-Code Scanner</span>
+            </div>
+            @if (!string.IsNullOrEmpty(_cameraName))
+            {
+                <div style="color:rgba(255,255,255,0.67);font-size:10px;padding:0 4px 4px;">
+                    @_cameraName
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(_cameraPreviewBase64))
+            {
+                <div style="position:relative;">
+                    <img src="data:image/jpeg;base64,@_cameraPreviewBase64" alt="Kamera-Vorschau"
+                         style="width:210px;height:150px;object-fit:cover;border-radius:6px;border:1px solid #555;display:block;" />
+                    <div class="qr-scan-overlay"></div>
+                </div>
+            }
+            else
+            {
+                <div class="qr-camera-placeholder">
+                    <span>📷</span>
+                </div>
+            }
+            <p class="qr-camera-status">@_cameraStatus</p>
+        </div>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "device")]
+    public string? DeviceFilter { get; set; }
+
+    private AppSettings _settings = new();
+    private bool _showLoader;
+    private bool _showCheckinInfo;
+    private string _memberName = "";
+    private string[] _statusLines = [];
+    private string _status = "";
+    private string _statusCssClass = "";
+    private string _avatarUrl = "";
+    private string _backgroundUrl = "";
+    private string _idleHintText = "";
+    private string _readerName = "";
+    private System.Timers.Timer? _idleTimer;
+
+    // Camera preview (frames from HardwareScannerService via WebCheckinService)
+    private string _cameraPreviewBase64 = "";
+    private string _cameraName = "";
+    private string _cameraStatus = "Warte auf Kamera...";
+
+    protected override void OnInitialized()
+    {
+        _settings = SettingsOptions.Value;
+        _idleHintText = _settings.IdleHintRfidAndQrCode;
+        _backgroundUrl = "images/backgrounds/background.png";
+
+        CheckinService.OnCheckinResult += HandleCheckinResult;
+        CheckinService.OnShowLoader += HandleShowLoader;
+
+        if (_settings.ShowQrCameraPreviewOnWelcome)
+            CheckinService.OnCameraPreview += HandleCameraPreview;
+    }
+
+    private async void HandleCameraPreview(CameraPreviewInfo info)
+    {
+        if (!MatchesDeviceFilter(info.CameraLabel))
+            return;
+
+        try
+        {
+            var base64 = Convert.ToBase64String(info.FrameData);
+            await InvokeAsync(() =>
+            {
+                _cameraPreviewBase64 = base64;
+                _cameraName = info.CameraLabel;
+                _cameraStatus = "Vorschau aktiv";
+                StateHasChanged();
+            });
+        }
+        catch { /* Component may be disposed */ }
+    }
+
+    private bool MatchesDeviceFilter(string? readerName)
+    {
+        if (string.IsNullOrEmpty(DeviceFilter))
+            return true;
+
+        if (string.IsNullOrEmpty(readerName))
+            return false;
+
+        var filters = DeviceFilter.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return filters.Any(f => readerName.Contains(f, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async void HandleShowLoader()
+    {
+        await InvokeAsync(() =>
+        {
+            _showLoader = true;
+            _showCheckinInfo = false;
+            StateHasChanged();
+        });
+    }
+
+    private async void HandleCheckinResult(CheckinResultInfo info)
+    {
+        if (!MatchesDeviceFilter(info.ReaderName))
+            return;
+
+        await InvokeAsync(() =>
+        {
+            _showLoader = false;
+            _showCheckinInfo = true;
+            _memberName = info.MemberName;
+            _statusLines = info.StatusLines;
+            _status = info.Status;
+            _avatarUrl = info.AvatarUrl ?? "";
+            _readerName = info.ReaderName ?? "";
+            _statusCssClass = info.Status switch
+            {
+                "ok" => "status-ok",
+                "warn" or "doublescan" => "status-warn",
+                _ => "status-error"
+            };
+            StateHasChanged();
+
+            // Play sound in browser
+            if (!string.IsNullOrEmpty(info.SoundPath))
+                SoundPlayer.Play(info.SoundPath);
+
+            // Reset to idle after timeout
+            _idleTimer?.Dispose();
+            _idleTimer = new System.Timers.Timer(_settings.WelcomeIdleTimeoutMs);
+            _idleTimer.AutoReset = false;
+            _idleTimer.Elapsed += async (_, _) =>
+            {
+                await InvokeAsync(() =>
+                {
+                    _showCheckinInfo = false;
+                    StateHasChanged();
+                });
+            };
+            _idleTimer.Start();
+        });
+    }
+
+    private void RequestFullscreen()
+    {
+        // Fullscreen can be triggered via JS interop if needed
+    }
+
+    public void Dispose()
+    {
+        CheckinService.OnCheckinResult -= HandleCheckinResult;
+        CheckinService.OnShowLoader -= HandleShowLoader;
+        CheckinService.OnCameraPreview -= HandleCameraPreview;
+        _idleTimer?.Dispose();
+    }
+}

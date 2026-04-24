@@ -1,0 +1,424 @@
+@using Microsoft.Extensions.Options
+@using Virtuagym.CheckIn.Web.Models
+@using Jablotron.API.Services
+@using Virtuagym.CheckIn.Core.Helper
+@using Virtuagym.API.Serialization
+@inject IOptions<AppSettings> SettingsOptions
+
+<div class="control-panel">
+    <h4>Jablotron Client</h4>
+
+    <div class="sub-tabs">
+        <button class="sub-tab-btn @(_subTab == "api" ? "active" : "")" @onclick='() => _subTab = "api"'>API-Verbindung</button>
+        <button class="sub-tab-btn @(_subTab == "services" ? "active" : "")" @onclick='() => _subTab = "services"'>Services</button>
+        <button class="sub-tab-btn @(_subTab == "gates" ? "active" : "")" @onclick='() => _subTab = "gates"'>Programmable Gates</button>
+        <button class="sub-tab-btn @(_subTab == "flink" ? "active" : "")" @onclick='() => _subTab = "flink"'>F-Link / RFID</button>
+        <button class="sub-tab-btn @(_subTab == "sia" ? "active" : "")" @onclick='() => _subTab = "sia"'>SIA DC-09</button>
+    </div>
+
+    @if (_subTab == "api")
+    {
+        <fieldset>
+            <legend>Jablotron Cloud API</legend>
+            <div class="form-group">
+                <label>API-URL:</label>
+                <input type="text" @bind="_settings.JablotronApiUrl" class="form-input" title="Basis-URL der Jablotron Cloud API." />
+            </div>
+            <div class="form-group">
+                <label>Benutzername:</label>
+                <input type="text" @bind="_settings.JablotronApiUsername" class="form-input" />
+            </div>
+            <div class="form-group">
+                <label>Passwort:</label>
+                <input type="password" @bind="_settings.JablotronApiPassword" class="form-input" />
+            </div>
+        </fieldset>
+
+        <fieldset>
+            <legend>Verbindungstest</legend>
+            <button class="btn" @onclick="TestConnection">Verbindung testen</button>
+            @if (!string.IsNullOrEmpty(_testResult))
+            {
+                <p class="test-result @_testResultCss" style="margin-top:8px;">@_testResult</p>
+            }
+        </fieldset>
+    }
+    else if (_subTab == "services")
+    {
+        <div style="margin-top:12px;">
+            <button class="btn" @onclick="LoadServices">Services laden</button>
+            @if (!string.IsNullOrEmpty(_servicesStatus))
+            {
+                <span class="text-muted" style="margin-left:12px;">@_servicesStatus</span>
+            }
+
+            @if (_jablotronServices.Count > 0)
+            {
+                <table class="data-table" style="margin-top:10px;">
+                    <thead>
+                        <tr>
+                            <th>Service ID</th>
+                            <th>Cloud Entity ID</th>
+                            <th>Name</th>
+                            <th>Service Type</th>
+                            <th>Status</th>
+                            <th>Message</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in _jablotronServices)
+                        {
+                            <tr>
+                                <td>@s.ServiceId</td>
+                                <td>@s.CloudEntityId</td>
+                                <td>@s.Name</td>
+                                <td>@s.ServiceType</td>
+                                <td>@s.Status</td>
+                                <td>@s.Message</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+    else if (_subTab == "gates")
+    {
+        <div style="margin-top:12px;">
+            <button class="btn" @onclick="LoadGates">Gates laden</button>
+            @if (!string.IsNullOrEmpty(_gatesStatus))
+            {
+                <span class="text-muted" style="margin-left:12px;">@_gatesStatus</span>
+            }
+
+            @if (_programmableGates.Count > 0)
+            {
+                <table class="data-table" style="margin-top:10px;">
+                    <thead>
+                        <tr>
+                            <th>Cloud Component ID</th>
+                            <th>Name</th>
+                            <th>State</th>
+                            <th>Can Control</th>
+                            <th>Need Auth</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var g in _programmableGates)
+                        {
+                            <tr>
+                                <td>@g.CloudComponentId</td>
+                                <td>@g.Name</td>
+                                <td>@g.State</td>
+                                <td>@(g.CanControl ? "✓" : "—")</td>
+                                <td>@(g.NeedAuthorization ? "✓" : "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+    else if (_subTab == "flink")
+    {
+        <Virtuagym.CheckIn.Web.Components.Controls.DeveloperJablotronControl />
+    }
+    else if (_subTab == "sia")
+    {
+        <fieldset>
+            <legend>SIA DC-09 Server</legend>
+            <div class="form-group" style="display:flex; align-items:center; gap:12px;">
+                <label>Port:</label>
+                <input type="number" @bind="_siaPort" style="width:100px;" disabled="@_siaRunning" />
+                <button class="btn" @onclick="ToggleSiaServer">@(_siaRunning ? "Server stoppen" : "Server starten")</button>
+                <button class="btn" @onclick="ClearSiaMessages">Log leeren</button>
+                <span class="text-muted" style="margin-left:12px;">@_siaStatusText</span>
+            </div>
+        </fieldset>
+
+        <div style="margin-top:12px; max-height:500px; overflow-y:auto;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Zeit</th>
+                        <th>Remote EP</th>
+                        <th>Account</th>
+                        <th>Event Code</th>
+                        <th>Beschreibung</th>
+                        <th>Zone</th>
+                        <th>User</th>
+                        <th>Raw</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var m in _siaMessages)
+                    {
+                        <tr>
+                            <td>@m.ReceivedAt</td>
+                            <td>@m.RemoteEndPoint</td>
+                            <td>@m.AccountNumber</td>
+                            <td>@m.EventCode</td>
+                            <td>@m.EventDescription</td>
+                            <td>@m.Zone</td>
+                            <td>@m.User</td>
+                            <td>@m.RawText</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private AppSettings _settings = new();
+    private string _subTab = "api";
+    private string _testResult = "";
+    private string _testResultCss = "";
+    private string _servicesStatus = "";
+    private string _gatesStatus = "";
+
+    private List<JablotronServiceDisplay> _jablotronServices = new();
+    private List<JablotronGateDisplay> _programmableGates = new();
+
+    // SIA DC-09
+    private int _siaPort = 33300;
+    private bool _siaRunning;
+    private string _siaStatusText = "";
+    private SiaUdpServer _siaServer;
+    private readonly List<SiaMessageDisplay> _siaMessages = new();
+
+    protected override void OnInitialized()
+    {
+        _settings = SettingsOptions.Value;
+    }
+
+    private async Task TestConnection()
+    {
+        try
+        {
+            _testResult = "Teste Verbindung...";
+            _testResultCss = "";
+            StateHasChanged();
+
+            await Task.Run(() =>
+            {
+                using var client = new JablotronCloudService(
+                    _settings.JablotronApiUrl,
+                    _settings.JablotronApiUsername,
+                    _settings.JablotronApiPassword);
+                client.PerformLogin();
+                var services = client.GetServices();
+                _testResult = $"Verbindung erfolgreich. {services.Count} Service(s) gefunden.";
+                _testResultCss = "success";
+            });
+        }
+        catch (Exception ex)
+        {
+            _testResult = $"Verbindung fehlgeschlagen: {ex.Message}";
+            _testResultCss = "error";
+        }
+    }
+
+    private async Task LoadServices()
+    {
+        _servicesStatus = "Lade Services...";
+        _jablotronServices.Clear();
+        StateHasChanged();
+        try
+        {
+            await Task.Run(() =>
+            {
+                using var client = new JablotronCloudService(
+                    _settings.JablotronApiUrl,
+                    _settings.JablotronApiUsername,
+                    _settings.JablotronApiPassword);
+                client.PerformLogin();
+                var services = client.GetServices();
+
+                _jablotronServices = services.Select(s => new JablotronServiceDisplay
+                {
+                    ServiceId = s.ServiceId.ToString(),
+                    CloudEntityId = s.CloudEntityId ?? "",
+                    Name = s.Name ?? "",
+                    ServiceType = s.ServiceType ?? "",
+                    Status = s.Status ?? "",
+                    Message = s.Message ?? ""
+                }).ToList();
+            });
+            _servicesStatus = $"{_jablotronServices.Count} Service(s) geladen.";
+        }
+        catch (Exception ex)
+        {
+            _servicesStatus = $"Fehler: {ex.Message}";
+        }
+    }
+
+    private async Task LoadGates()
+    {
+        _gatesStatus = "Lade Gates...";
+        _programmableGates.Clear();
+        StateHasChanged();
+        try
+        {
+            await Task.Run(() =>
+            {
+                using var client = new JablotronCloudService(
+                    _settings.JablotronApiUrl,
+                    _settings.JablotronApiUsername,
+                    _settings.JablotronApiPassword);
+                client.PerformLogin();
+                var gatesData = client.GetProgrammableGates();
+
+                if (gatesData?.ProgrammableGates != null)
+                {
+                    var statesLookup = (gatesData.States ?? new List<Jablotron.API.CloudApi.Models.ServiceState>())
+                        .ToDictionary(s => s.CloudComponentId ?? "", s => s.State ?? "");
+
+                    _programmableGates = gatesData.ProgrammableGates.Select(g => new JablotronGateDisplay
+                    {
+                        CloudComponentId = g.CloudComponentId ?? "",
+                        Name = g.Name ?? "",
+                        CanControl = g.CanControl,
+                        NeedAuthorization = g.NeedAuthorization,
+                        State = statesLookup.TryGetValue(g.CloudComponentId ?? "", out var state) ? state : ""
+                    }).ToList();
+
+                    // Save gates to JSON for gate test control
+                    SaveProgrammableGatesToJson(gatesData, client.CurrentServiceId);
+                }
+            });
+            _gatesStatus = $"{_programmableGates.Count} Gate(s) geladen.";
+        }
+        catch (Exception ex)
+        {
+            _gatesStatus = $"Fehler: {ex.Message}";
+        }
+    }
+
+    private void SaveProgrammableGatesToJson(Jablotron.API.CloudApi.Models.ProgrammableGatesData gatesData, int? serviceId)
+    {
+        try
+        {
+            var exportList = (gatesData.ProgrammableGates ?? new())
+                .Select(g => new Dictionary<string, object>
+                {
+                    { "service-id", serviceId! },
+                    { "cloud-component-id", g.CloudComponentId ?? "" },
+                    { "name", g.Name ?? "" },
+                    { "can-control", g.CanControl },
+                    { "need-authorization", g.NeedAuthorization }
+                }).ToList();
+
+            var outputPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Constants.JablotronGatesFilePath);
+            var outputDir = Path.GetDirectoryName(outputPath);
+            if (!string.IsNullOrWhiteSpace(outputDir) && !Directory.Exists(outputDir))
+                Directory.CreateDirectory(outputDir);
+
+            var serializer = new JsonSerializerAdapter();
+            var json = serializer.Serialize(exportList);
+            File.WriteAllText(outputPath, json);
+        }
+        catch { /* best effort */ }
+    }
+
+    private async Task ToggleSiaServer()
+    {
+        if (_siaRunning && _siaServer != null)
+        {
+            await _siaServer.StopAsync();
+            _siaServer.Dispose();
+            _siaServer = null;
+            _siaRunning = false;
+            _siaStatusText = "Server gestoppt.";
+        }
+        else
+        {
+            if (_siaPort < 1 || _siaPort > 65535)
+            {
+                _siaStatusText = "Ungültiger Port.";
+                return;
+            }
+
+            try
+            {
+                _siaServer = new SiaUdpServer(new Jablotron.API.SIA.Models.SiaUdpServerOptions { Port = _siaPort });
+                _siaServer.MessageReceived += OnSiaMessageReceived;
+                _siaServer.ReceiveError += OnSiaReceiveError;
+                await _siaServer.StartAsync();
+                _siaRunning = true;
+                _siaStatusText = $"Server läuft auf Port {_siaPort}.";
+            }
+            catch (Exception ex)
+            {
+                _siaStatusText = $"Fehler: {ex.Message}";
+                _siaServer?.Dispose();
+                _siaServer = null;
+            }
+        }
+    }
+
+    private void OnSiaMessageReceived(object sender, Jablotron.API.Services.SiaMessageReceivedEventArgs e)
+    {
+        InvokeAsync(() =>
+        {
+            _siaMessages.Insert(0, new SiaMessageDisplay
+            {
+                ReceivedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                RemoteEndPoint = e.RemoteEndPoint?.ToString() ?? "",
+                AccountNumber = e.Message?.AccountNumber ?? "",
+                EventCode = e.Message?.EventCode ?? "",
+                EventDescription = e.Message?.EventDescriptions != null ? string.Join(", ", e.Message.EventDescriptions) : "",
+                Zone = e.Message?.Zone ?? "",
+                User = e.Message?.User ?? "",
+                RawText = e.Message?.RawText ?? ""
+            });
+            StateHasChanged();
+        });
+    }
+
+    private void OnSiaReceiveError(object sender, Exception ex)
+    {
+        InvokeAsync(() =>
+        {
+            _siaStatusText = $"Empfangsfehler: {ex.Message}";
+            StateHasChanged();
+        });
+    }
+
+    private void ClearSiaMessages()
+    {
+        _siaMessages.Clear();
+    }
+
+    private sealed class SiaMessageDisplay
+    {
+        public string ReceivedAt { get; set; } = "";
+        public string RemoteEndPoint { get; set; } = "";
+        public string AccountNumber { get; set; } = "";
+        public string EventCode { get; set; } = "";
+        public string EventDescription { get; set; } = "";
+        public string Zone { get; set; } = "";
+        public string User { get; set; } = "";
+        public string RawText { get; set; } = "";
+    }
+
+    private sealed class JablotronServiceDisplay
+    {
+        public string ServiceId { get; set; } = "";
+        public string CloudEntityId { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string ServiceType { get; set; } = "";
+        public string Status { get; set; } = "";
+        public string Message { get; set; } = "";
+    }
+
+    private sealed class JablotronGateDisplay
+    {
+        public string CloudComponentId { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string State { get; set; } = "";
+        public bool CanControl { get; set; }
+        public bool NeedAuthorization { get; set; }
+    }
+}

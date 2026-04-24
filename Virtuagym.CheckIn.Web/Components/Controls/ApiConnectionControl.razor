@@ -1,0 +1,212 @@
+@using Microsoft.Extensions.Options
+@using Virtuagym.CheckIn.Web.Models
+@using Virtuagym.CheckIn.Web.Services
+@inject IOptions<AppSettings> SettingsOptions
+@inject WebVirtuagymApiServiceFactory ApiFactory
+
+<div class="control-panel">
+    <h4>API Connection</h4>
+
+    <fieldset>
+        <legend>Allgemein (v0 + v1)</legend>
+        <div class="form-group">
+            <label>API-Key:</label>
+            <input type="text" @bind="_settings.VirtuagymApiKey" class="form-input" title="API-Key für Virtuagym v1 API." />
+        </div>
+        <div class="form-group">
+            <label>Server-URL:</label>
+            <input type="text" @bind="_settings.VirtuagymServerUrl" class="form-input" title="Basis-URL des Virtuagym-Servers." />
+        </div>
+        <div class="form-group">
+            <label>Club-Secret:</label>
+            <input type="text" @bind="_settings.VirtuagymClubSecret" class="form-input" title="Club-Secret / Check-In Key." />
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>v0 API (Check-in / Basic Auth)</legend>
+        <div class="form-group">
+            <label>Check-in API-Key:</label>
+            <input type="text" @bind="_settings.MemberCheckinApiV0Key" class="form-input" title="API-Key für v0-Endpunkte." />
+        </div>
+        <div class="form-group">
+            <label>Benutzername:</label>
+            <input type="text" @bind="_settings.MemberCheckinApiV0Username" class="form-input" title="Benutzername für v0 Basic Auth." />
+        </div>
+        <div class="form-group">
+            <label>Passwort:</label>
+            <input type="password" @bind="_settings.MemberCheckinApiV0Password" class="form-input" title="Passwort für v0 Basic Auth." />
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>Verbindungstest</legend>
+        <button class="btn" @onclick="TestConnection">Verbindung testen</button>
+        @if (!string.IsNullOrEmpty(_testResult))
+        {
+            <p class="test-result @_testResultCss" style="margin-top:8px;">@_testResult</p>
+        }
+    </fieldset>
+
+    <fieldset>
+        <legend>Member-Cache (Synchronisation)</legend>
+        <p style="font-weight:600; margin-bottom:8px;">Lokaler Member-Cache für schnellere Check-ins und weniger API-Requests:</p>
+
+        <div class="form-group">
+            <label>Member-Cache aktivieren:</label>
+            <input type="checkbox" @bind="_settings.MemberCacheEnabled" title="Mitglieder-Daten lokal zwischenspeichern für schnellere Check-ins, Offline-Fallback und Duplikat-Schutz." />
+        </div>
+        <div class="form-group">
+            <label>Automatische Synchronisation:</label>
+            <input type="checkbox" @bind="_settings.CacheSyncEnabled" title="Mitglieder-Daten periodisch von der API synchronisieren." />
+        </div>
+        <div class="form-group">
+            <label>Sync-Modus:</label>
+            <select @bind="_settings.CacheSyncMode" class="form-input" style="width:200px;">
+                <option value="Interval">Intervall</option>
+                <option value="DailyTime">Täglich um Uhrzeit</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Intervall (Minuten):</label>
+            <input type="number" @bind="_settings.CacheSyncIntervalMinutes" class="form-input" style="width:100px;" title="Synchronisationsintervall in Minuten (z.B. 60 = stündlich)." />
+        </div>
+        <div class="form-group">
+            <label>Uhrzeit (HH:mm):</label>
+            <input type="text" @bind="_settings.CacheSyncDailyTime" class="form-input" style="width:100px;" title="Uhrzeit im 24-Stunden-Format, z.B. 02:00." />
+        </div>
+        <div class="form-group">
+            <label>Credits-Cache TTL (Min):</label>
+            <input type="number" @bind="_settings.CreditsCacheTtlMinutes" class="form-input" style="width:100px;" title="Wie lange gecachte Credits gültig bleiben (in Minuten)." />
+        </div>
+
+        @if (!string.IsNullOrEmpty(_cacheSyncStatus))
+        {
+            <p class="text-muted" style="margin:8px 0;">@_cacheSyncStatus</p>
+        }
+        @if (!string.IsNullOrEmpty(_syncProgress))
+        {
+            <p class="text-muted" style="margin:4px 0; font-size:0.9em;">@_syncProgress</p>
+        }
+
+        <div style="display:flex; gap:10px; margin-top:8px;">
+            <button class="btn" @onclick="SyncNow" disabled="@_isSyncing" title="Startet eine manuelle Synchronisation aller Mitglieder von der API.">Jetzt synchronisieren</button>
+            <button class="btn btn-secondary" @onclick="ClearCache" title="Löscht alle lokal gespeicherten Mitglieder-Daten.">Cache leeren</button>
+        </div>
+    </fieldset>
+</div>
+
+@code {
+    private AppSettings _settings = new();
+    private string _testResult = "";
+    private string _testResultCss = "";
+    private string _cacheSyncStatus = "";
+    private string _syncProgress = "";
+    private bool _isSyncing;
+
+    protected override void OnInitialized()
+    {
+        _settings = SettingsOptions.Value;
+        UpdateCacheStatus();
+    }
+
+    private void UpdateCacheStatus()
+    {
+        try
+        {
+            using var cache = new Virtuagym.API.Services.MemberCacheService();
+            int count = cache.GetCount();
+            var lastSync = cache.GetLastSyncTime();
+            _cacheSyncStatus = $"{count} Einträge im Cache.";
+            if (lastSync.HasValue)
+                _cacheSyncStatus += $" Letzte Synchronisation: {lastSync.Value:dd.MM.yyyy HH:mm}";
+        }
+        catch
+        {
+            _cacheSyncStatus = "Cache-Status konnte nicht gelesen werden.";
+        }
+    }
+
+    private async Task TestConnection()
+    {
+        try
+        {
+            _testResult = "Teste Verbindung...";
+            _testResultCss = "";
+            StateHasChanged();
+
+            using var api = WebVirtuagymApiServiceFactory.Create(
+                _settings.VirtuagymApiKey,
+                _settings.VirtuagymServerUrl,
+                _settings.VirtuagymClubSecret);
+
+            var result = await api.TestConnectionAsync();
+
+            if (result.Success)
+            {
+                _testResult = result.Message;
+                _testResultCss = "success";
+            }
+            else
+            {
+                _testResult = result.Message;
+                _testResultCss = "error";
+            }
+        }
+        catch (Exception ex)
+        {
+            _testResult = $"Verbindung fehlgeschlagen: {ex.Message}";
+            _testResultCss = "error";
+        }
+    }
+
+    private async Task SyncNow()
+    {
+        _isSyncing = true;
+        _cacheSyncStatus = "Synchronisation läuft...";
+        _syncProgress = "";
+        StateHasChanged();
+
+        try
+        {
+            using var api = ApiFactory.Create();
+            var cache = new Virtuagym.API.Services.MemberCacheService();
+
+            cache.SyncStarted += (msg) => InvokeAsync(() => { _cacheSyncStatus = msg; StateHasChanged(); });
+            cache.SyncProgress += (current, total) => InvokeAsync(() =>
+            {
+                _syncProgress = $"{current} / {total} Mitglieder verarbeitet ({(total > 0 ? current * 100 / total : 0)}%)";
+                StateHasChanged();
+            });
+            cache.SyncCompleted += (msg) => InvokeAsync(() => { _cacheSyncStatus = msg; StateHasChanged(); });
+            cache.SyncError += (msg, ex) => InvokeAsync(() => { _cacheSyncStatus = msg; StateHasChanged(); });
+
+            int count = await cache.SyncFromApiAsync(api);
+            cache.Dispose();
+            _cacheSyncStatus = $"Synchronisation abgeschlossen. {count} Mitglieder synchronisiert.";
+            _syncProgress = "";
+        }
+        catch (Exception ex)
+        {
+            _cacheSyncStatus = $"Sync-Fehler: {ex.Message}";
+        }
+        finally
+        {
+            _isSyncing = false;
+        }
+    }
+
+    private void ClearCache()
+    {
+        try
+        {
+            using var cache = new Virtuagym.API.Services.MemberCacheService();
+            cache.Clear();
+            _cacheSyncStatus = "Cache wurde geleert.";
+        }
+        catch (Exception ex)
+        {
+            _cacheSyncStatus = $"Fehler: {ex.Message}";
+        }
+    }
+}

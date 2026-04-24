@@ -1,0 +1,286 @@
+@using Microsoft.Extensions.Options
+@using Virtuagym.CheckIn.Web.Models
+@using Virtuagym.CheckIn.Web.Services
+@using Virtuagym.CheckIn.Core.Services
+@using Virtuagym.CheckIn.Core.Models
+@using Virtuagym.CheckIn.Core.Helper
+@using Virtuagym.API.Services
+@using Virtuagym.API.Cache.Models
+@using Hardware.Models
+@inject IOptions<AppSettings> SettingsOptions
+@inject WebVirtuagymApiServiceFactory ApiFactory
+@inject WebLogService LogService
+
+<div class="control-panel">
+    <h4>Checkin-Simulation</h4>
+
+    <div class="form-group">
+        <label>Checkin-Client Mapping:</label>
+        <select @bind="_selectedMappingIndex" class="form-input" style="width:400px;">
+            @for (int i = 0; i < _mappings.Count; i++)
+            {
+                var idx = i;
+                <option value="@idx">@_mappings[idx].Name</option>
+            }
+        </select>
+    </div>
+    <div class="form-group">
+        <label>Card-ID / QR-Code / MemberId:</label>
+        <input type="text" @bind="_cardId" class="form-input" style="width:400px;" @onkeydown="OnKeyDown" placeholder="0005546808" />
+    </div>
+    <div class="form-group">
+        <label>&nbsp;</label>
+        <input type="checkbox" @bind="_byMemberId" /> <span>@L.T("DeveloperSimulation_ByMemberId")</span>
+    </div>
+    <div class="form-group">
+        <label>&nbsp;</label>
+        <input type="checkbox" @bind="_clearCacheEntry" /> <span>@L.T("Web_DevSim_ClearCacheEntry")</span>
+    </div>
+    <div class="form-group">
+        <label>&nbsp;</label>
+        <input type="checkbox" @bind="_forceOffline" /> <span>@L.T("DeveloperSimulation_ForceOffline")</span>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:10px;">
+        <button class="btn" @onclick="RunSimulation" disabled="@_isRunning">▶ @L.T("DeveloperSimulation_BtnRun")</button>
+        <button class="btn btn-secondary" @onclick="ClearLog">@L.T("DeveloperSimulation_BtnClearLog")</button>
+        @if (!string.IsNullOrEmpty(_statusText))
+        {
+            <span class="text-muted" style="align-self:center;">@_statusText</span>
+        }
+    </div>
+
+    <h5 style="margin-top:16px;">Simulations-Log:</h5>
+    <div style="max-height:400px; overflow-y:auto; border:1px solid var(--color-border); padding:8px; background:#fafafa; font-family:monospace; font-size:0.85em;">
+        @if (_logEntries.Count == 0)
+        {
+            <p class="text-muted">Kein Log-Eintrag vorhanden.</p>
+        }
+        else
+        {
+            @foreach (var entry in _logEntries)
+            {
+                <div style="color:@entry.Color; margin-bottom:2px;">@entry.Text</div>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private List<CheckinClientMapping> _mappings = new();
+    private int _selectedMappingIndex = -1;
+    private string _cardId = "0005546808";
+    private bool _byMemberId;
+    private bool _clearCacheEntry;
+    private bool _forceOffline;
+    private bool _isRunning;
+    private string _statusText = "";
+    private List<SimLogEntry> _logEntries = new();
+
+    protected override void OnInitialized()
+    {
+        LoadMappings();
+    }
+
+    private void LoadMappings()
+    {
+        try
+        {
+            var json = SettingsOptions.Value.CheckinClientMappings;
+            if (!string.IsNullOrWhiteSpace(json) && json != "[]")
+            {
+                _mappings = System.Text.Json.JsonSerializer.Deserialize<List<CheckinClientMapping>>(json) ?? new();
+                if (_mappings.Count > 0) _selectedMappingIndex = 0;
+            }
+        }
+        catch { _mappings = new(); }
+    }
+
+    private async Task OnKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await RunSimulation();
+    }
+
+    private async Task RunSimulation()
+    {
+        var cardId = _cardId?.Trim();
+        if (string.IsNullOrWhiteSpace(cardId))
+        {
+            _statusText = L.T("DeveloperSimulation_CardIdRequired");
+            return;
+        }
+        if (_selectedMappingIndex < 0 || _selectedMappingIndex >= _mappings.Count)
+        {
+            _statusText = L.T("Web_DevSim_SelectMapping");
+            return;
+        }
+
+        var mapping = _mappings[_selectedMappingIndex];
+        _isRunning = true;
+        _statusText = L.T("Web_DevSim_Running");
+        StateHasChanged();
+
+        var simLogger = new SimulationLogWriter(_logEntries, () => InvokeAsync(StateHasChanged));
+
+        try
+        {
+            simLogger.WriteToLog($"Simulation started: '{cardId}' (Mapping: {mapping.Name ?? "unnamed"}{(_byMemberId ? ", MemberId" : "")})", Constants.LogInfo);
+
+            MemberCacheService? cache = null;
+            try
+            {
+                cache = new MemberCacheService();
+                int cacheCount = cache.GetCount();
+                simLogger.WriteToLog(string.Format(L.T("Web_DevSim_CacheLoaded"), cacheCount), Constants.LogInfo);
+
+                if (_byMemberId)
+                {
+                    if (long.TryParse(cardId, out long memberId) && memberId > 0)
+                    {
+                        var cachedEntry = cache.GetByMemberId(memberId);
+                        if (cachedEntry != null && _clearCacheEntry)
+                        {
+                            cache.DeleteByMemberId(cachedEntry.MemberId);
+                            simLogger.WriteToLog(string.Format(L.T("Web_DevSim_CacheEntryDeleted"), cachedEntry.DisplayName, cachedEntry.MemberId), Constants.LogWarning);
+                            cachedEntry = null;
+                        }
+                        if (cachedEntry != null)
+                            simLogger.WriteToLog($"[SIM] Cache hit: {cachedEntry.DisplayName} (ID {cachedEntry.MemberId}, Active: {cachedEntry.Active})", Constants.LogSuccess);
+                        else
+                            simLogger.WriteToLog(string.Format(L.T("Web_DevSim_NoCacheEntryForMemberId"), memberId), Constants.LogWarning);
+                    }
+                    else
+                    {
+                        simLogger.WriteToLog(L.T("Web_DevSim_InvalidMemberId"), Constants.LogWarning);
+                    }
+                }
+                else
+                {
+                    var cachedEntry = cache.GetByRfidTag(cardId);
+                    if (cachedEntry != null && _clearCacheEntry)
+                    {
+                        cache.DeleteByMemberId(cachedEntry.MemberId);
+                        simLogger.WriteToLog(string.Format(L.T("Web_DevSim_CacheEntryDeleted"), cachedEntry.DisplayName, cachedEntry.MemberId), Constants.LogWarning);
+                        cachedEntry = null;
+                    }
+                    if (cachedEntry != null)
+                        simLogger.WriteToLog($"[SIM] Cache hit: {cachedEntry.DisplayName} (ID {cachedEntry.MemberId}, Active: {cachedEntry.Active})", Constants.LogSuccess);
+                    else
+                        simLogger.WriteToLog(string.Format(L.T("Web_DevSim_NoCacheEntryForRfid"), cardId), Constants.LogWarning);
+                }
+            }
+            catch (Exception cacheEx)
+            {
+                simLogger.WriteToLog($"[SIM] Cache error: {cacheEx.Message}", Constants.LogWarning);
+            }
+
+            var appSettings = SettingsOptions.Value;
+            var soundPlayer = new NullSoundPlayer();
+            var handler = new CheckinHandler(simLogger, mapping, null, appSettings, soundPlayer, ApiFactory, cache);
+            handler.ForceOffline = _forceOffline;
+
+            if (_byMemberId)
+            {
+                if (long.TryParse(cardId, out long memberId) && memberId > 0)
+                {
+                    CachedMemberInfo? precached = null;
+                    var entry = cache?.GetByMemberId(memberId);
+                    if (entry != null)
+                    {
+                        precached = new CachedMemberInfo
+                        {
+                            MemberId = entry.MemberId,
+                            UserId = entry.UserId,
+                            RfidTag = entry.RfidTag,
+                            Firstname = entry.Firstname,
+                            Lastname = entry.Lastname,
+                            Avatar = entry.AvatarUrl,
+                            Active = entry.Active,
+                            TimestampEdit = entry.TimestampEdit,
+                            DeviceCheckins = entry.DeviceCheckins,
+                            ServiceCredits = entry.ServiceCredits,
+                            CreditsLastSyncTimestamp = entry.CreditsLastSyncTimestamp
+                        };
+                    }
+                    else
+                    {
+                        precached = new CachedMemberInfo { MemberId = memberId, Active = true };
+                    }
+
+                    string rfidTag = precached.RfidTag ?? "";
+                    await handler.PerformCheckinAsync(new Card(rfidTag), $"SIM-MID {mapping.Name ?? mapping.DeviceID}", precached);
+                }
+                else
+                {
+                    simLogger.WriteToLog(L.T("Web_DevSim_InvalidMemberIdError"), Constants.LogError);
+                }
+            }
+            else if (mapping.InputType == CheckinClientMapping.InputTypeQrCode)
+            {
+                await handler.PerformCheckinAsync(cardId, $"SIM-QR {mapping.Name ?? "QR"}");
+            }
+            else
+            {
+                await handler.PerformCheckinAsync(new Card(cardId), $"SIM {mapping.Name ?? mapping.DeviceID}");
+            }
+
+            cache?.Dispose();
+            _statusText = string.Format(L.T("Web_DevSim_Completed"), cardId);
+        }
+        catch (Exception ex)
+        {
+            simLogger.WriteToLog($"Error: {ex.Message}", Constants.LogError);
+            _statusText = string.Format(L.T("Web_EditMember_Error"), ex.Message);
+        }
+        finally
+        {
+            _isRunning = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ClearLog()
+    {
+        _logEntries.Clear();
+        _statusText = "";
+    }
+
+    private sealed class SimLogEntry
+    {
+        public string Text { get; set; } = "";
+        public string Color { get; set; } = "#333";
+    }
+
+    /// <summary>
+    /// ILogWriter implementation that writes to the in-memory log list.
+    /// </summary>
+    private sealed class SimulationLogWriter(List<SimLogEntry> entries, Func<Task> notifyChanged) : Virtuagym.CheckIn.Core.Abstractions.ILogWriter
+    {
+        public void WriteToLog(string message, int type = Constants.LogInfo)
+        {
+            var color = type switch
+            {
+                Constants.LogError => "#d32f2f",
+                Constants.LogWarning => "#f57c00",
+                Constants.LogSuccess => "#388e3c",
+                _ => "#333"
+            };
+            entries.Add(new SimLogEntry { Text = $"[{DateTime.Now:HH:mm:ss}] {message}", Color = color });
+            _ = notifyChanged();
+        }
+
+        public void WriteToRejectedLog(string cardId, string status, string reason)
+        {
+            entries.Add(new SimLogEntry { Text = $"[{DateTime.Now:HH:mm:ss}] REJECTED: {cardId} - {status} - {reason}", Color = "#d32f2f" });
+            _ = notifyChanged();
+        }
+    }
+
+    /// <summary>
+    /// No-op sound player for server-side simulation.
+    /// </summary>
+    private sealed class NullSoundPlayer : Virtuagym.CheckIn.Core.Abstractions.ISoundPlayer
+    {
+        public void Play(string soundPath) { }
+    }
+}

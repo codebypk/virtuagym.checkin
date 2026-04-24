@@ -1,0 +1,40 @@
+<UserControl x:Class="Virtuagym.CheckIn.WPF.Controls.DeveloperJablotronGateTestControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="300" d:DesignWidth="800"
+             Background="White">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <TextBlock x:Name="lblGate" Grid.Row="0" Grid.Column="0" Text="Programmable Gate:" VerticalAlignment="Center" Margin="0,0,8,8"/>
+        <ComboBox x:Name="cmbGates" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" DisplayMemberPath="Display"/>
+
+        <TextBlock x:Name="lblDuration" Grid.Row="1" Grid.Column="0" Text="Zeit (Sekunden):" VerticalAlignment="Center" Margin="0,0,8,8"/>
+        <TextBox x:Name="txtDurationSeconds" Grid.Row="1" Grid.Column="1" Width="120" HorizontalAlignment="Left" Text="3" Margin="0,0,0,8"/>
+
+        <TextBlock x:Name="lblState" Grid.Row="2" Grid.Column="0" Text="Toggle State:" VerticalAlignment="Center" Margin="0,0,8,8"/>
+        <CheckBox x:Name="chkToggleState" Grid.Row="2" Grid.Column="1" Content="ON" VerticalAlignment="Center" Margin="0,0,0,8"/>
+
+        <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,0,0,8">
+            <Button x:Name="btnReloadGates" Content="Gates neu laden" Width="130" Height="28" Margin="0,0,10,0" Click="btnReloadGates_Click"/>
+            <Button x:Name="btnApplyToggle" Content="Toggle testen" Width="120" Height="28" Click="btnApplyToggle_Click"/>
+            <TextBlock x:Name="txtStatus" Margin="10,0,0,0" VerticalAlignment="Center" Foreground="Gray" TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <TextBlock x:Name="txtHint" Grid.Row="4" Grid.ColumnSpan="2" Foreground="#666" TextWrapping="Wrap"
+                   Text="Lädt Gates aus resources\data\jablotron_gates.json und steuert das gewählte Gate über Jablotron Cloud (ON/OFF). Bei ON + Zeit > 0 wird automatisch nach Ablauf auf OFF zurückgeschaltet."/>
+    </Grid>
+</UserControl>

@@ -1,0 +1,119 @@
+<Window x:Class="Virtuagym.CheckIn.WPF.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Virtuagym.CheckIn.WPF"
+        xmlns:converters="clr-namespace:Virtuagym.CheckIn.WPF.Converters"
+        mc:Ignorable="d"
+        Title="Virtuagym RFID Reader" Height="490" Width="803" ResizeMode="CanMinimize"
+        Closing="OnClose" StateChanged="OnStateChanged" IsVisibleChanged="OnIsVisibleChanged" Loaded="Window_Loaded">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="32" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <!-- Wiederverwendbarer Title Bar Button Style -->
+        <Style x:Key="TitleBarButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="36"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#33000000"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Close Button Style (roter Hover) -->
+        <Style x:Key="CloseButtonStyle" TargetType="Button" BasedOn="{StaticResource TitleBarButtonStyle}">
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#E81123"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="306*"/>
+            <ColumnDefinition Width="403*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="32"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Custom Title Bar -->
+        <Grid Grid.Row="0" Background="{DynamicResource {x:Static SystemColors.ActiveCaptionBrushKey}}" Grid.ColumnSpan="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Icon -->
+            <Image Grid.Column="0" Source="Main.ico" Width="20" Height="20" Margin="8,0,0,0" VerticalAlignment="Center"/>
+
+            <!-- Title -->
+            <TextBlock Grid.Column="1" Text="Virtuagym Member Check-In" VerticalAlignment="Center" Margin="8,0,0,0" 
+                       Foreground="{DynamicResource {x:Static SystemColors.ActiveCaptionTextBrushKey}}" FontSize="12"/>
+
+            <!-- Settings Button -->
+            <Button x:Name="btnTitleSettings" Grid.Column="2" Style="{StaticResource TitleBarButtonStyle}" 
+                    Click="MenuItemSettings_Click" ToolTip="Settings">
+                <Path Fill="{DynamicResource {x:Static SystemColors.ActiveCaptionTextBrushKey}}" 
+                      Width="14" Height="14" Stretch="Uniform"
+                      Data="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/>
+            </Button>
+
+            <!-- Minimize Button -->
+            <Button x:Name="btnTitleMinimize" Grid.Column="3" Style="{StaticResource TitleBarButtonStyle}" 
+                    Click="MinimizeButton_Click" ToolTip="Minimize">
+                <Rectangle Width="10" Height="1" Fill="{DynamicResource {x:Static SystemColors.ActiveCaptionTextBrushKey}}"/>
+            </Button>
+
+            <!-- Close Button -->
+            <Button x:Name="btnTitleClose" Grid.Column="4" Style="{StaticResource CloseButtonStyle}" 
+                    Click="MenuItemExit_Click" ToolTip="Close">
+                <Path Stroke="{DynamicResource {x:Static SystemColors.ActiveCaptionTextBrushKey}}" 
+                      StrokeThickness="1" Width="10" Height="10" Stretch="Uniform"
+                      Data="M0,0 L10,10 M10,0 L0,10"/>
+            </Button>
+        </Grid>
+
+        <Grid Grid.Row="1" Grid.ColumnSpan="2">
+            <ListView x:Name="listViewLogEntries" ScrollViewer.VerticalScrollBarVisibility="Visible">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn x:Name="colStatus" Header="Status" Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ListView}, Converter={x:Static converters:WidthConverter.Instance}}" />
+                    </GridView>
+                </ListView.View>
+            </ListView>
+            <ProgressBar x:Name="pgbSyncIndicator"
+                         IsIndeterminate="True"
+                         Height="4"
+                         VerticalAlignment="Bottom"
+                         Visibility="Collapsed"
+                         Foreground="#1976D2"
+                         Background="Transparent"
+                         BorderThickness="0"/>
+        </Grid>
+
+    </Grid>
+</Window>

@@ -1,0 +1,457 @@
+<Window x:Class="Virtuagym.CheckIn.WPF.EditCheckinClientMappingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Checkin-Client Mapping bearbeiten" Height="669" Width="608" 
+        WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip" MinHeight="450" MinWidth="520">
+    <DockPanel Margin="15">
+        <!-- Buttons fix am unteren Rand -->
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button x:Name="btnMappingSave" Content="&#220;bernehmen" Width="100" Height="30" Margin="0,0,10,0" Click="btnMappingSave_Click"/>
+            <Button x:Name="btnMappingCancel" Content="Abbrechen" Width="100" Height="30" Click="btnMappingCancel_Click"/>
+        </StackPanel>
+
+        <!-- Top-Level TabControl -->
+        <TabControl x:Name="tabMain" Margin="0,0,0,0">
+
+            <!-- ==================== Tab 1: Allgemein ==================== -->
+            <TabItem x:Name="tabGeneral" Header="Allgemein">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,5,0">
+                    <StackPanel Margin="10">
+
+                        <!-- Gerät -->
+                        <TextBlock x:Name="txtGrpMappingHeader" Text="Ger&#228;t" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock x:Name="lblMappingName" Grid.Row="0" Grid.Column="0" Text="Name:" VerticalAlignment="Center" Margin="0,5"/>
+                            <TextBox x:Name="txtMappingName" Grid.Row="0" Grid.Column="1" Margin="0,5"
+                                     TextChanged="txtMappingName_TextChanged"
+                                     ToolTip="Anzeigename (z.B. 'Eingang Hauptt&#252;r'). Wird bei v1 API als Ger&#228;te-ID verwendet."/>
+
+                            <TextBlock x:Name="lblMappingInputType" Grid.Row="1" Grid.Column="0" Text="Eingabetyp:" VerticalAlignment="Center" Margin="0,5"/>
+                            <ComboBox x:Name="cmbMappingInputType" Grid.Row="1" Grid.Column="1" Width="200" HorizontalAlignment="Left" Margin="0,5"
+                                      SelectionChanged="cmbMappingInputType_SelectionChanged"
+                                      ToolTip="Art des Eingabeger&#228;ts: RFID-Reader, QR-Code-Kamera oder CCID-Smartcard-Reader.">
+                                <ComboBoxItem Content="USB-Reader" Tag="USBReader"/>
+                                <ComboBoxItem Content="QR-Code-Kamera" Tag="QRCode"/>
+                                <ComboBoxItem Content="CCID-Smartcard (PC/SC)" Tag="CCID"/>
+                            </ComboBox>
+
+                            <TextBlock x:Name="lblDeviceId" Grid.Row="2" Grid.Column="0" Text="USB Device:" VerticalAlignment="Center" Margin="0,5"/>
+                            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,5">
+                                <ComboBox x:Name="cmbMappingDeviceID" IsEditable="True" MinWidth="300"
+                                          ToolTip="USB-Device-ID des USB-Readers."/>
+                                <Button x:Name="btnRefreshDevices" Content="🔄" Width="30" Margin="4,0,0,0"
+                                        ToolTip="Geräteliste aktualisieren" Click="btnRefreshDevices_Click"/>
+                            </StackPanel>
+
+                            <TextBlock x:Name="lblCamera" Grid.Row="3" Grid.Column="0" Text="Kamera:" VerticalAlignment="Center" Margin="0,5" Visibility="Collapsed"/>
+                            <ComboBox x:Name="cmbMappingCamera" Grid.Row="3" Grid.Column="1" Width="300" HorizontalAlignment="Left" Margin="0,5" Visibility="Collapsed"
+                                      ToolTip="Kamera f&#252;r die QR-Code-Erkennung."/>
+
+                            <TextBlock x:Name="lblCameraResolution" Grid.Row="4" Grid.Column="0" Text="Aufl&#246;sung:" VerticalAlignment="Center" Margin="0,5" Visibility="Collapsed"/>
+                            <ComboBox x:Name="cmbCameraResolution" Grid.Row="4" Grid.Column="1" Width="200" HorizontalAlignment="Left" Margin="0,5" Visibility="Collapsed"
+                                      ToolTip="Kamera-Aufl&#246;sung. H&#246;here Aufl&#246;sung verbessert die Erkennung auf Distanz, ben&#246;tigt aber mehr CPU.">
+                                <ComboBoxItem Content="640 &#215; 480" Tag="640x480" IsSelected="True"/>
+                                <ComboBoxItem Content="1280 &#215; 720 (HD)" Tag="1280x720"/>
+                                <ComboBoxItem Content="1920 &#215; 1080 (Full HD)" Tag="1920x1080"/>
+                                <ComboBoxItem Content="2560 &#215; 1440 (QHD)" Tag="2560x1440"/>
+                                <ComboBoxItem Content="3840 &#215; 2160 (Ultra HD)" Tag="3840x2160"/>
+                            </ComboBox>
+
+                            <TextBlock x:Name="lblCameraBackend" Grid.Row="5" Grid.Column="0" Text="Video-Backend:" VerticalAlignment="Center" Margin="0,5" Visibility="Collapsed"/>
+                            <ComboBox x:Name="cmbCameraBackend" Grid.Row="5" Grid.Column="1" Width="200" HorizontalAlignment="Left" Margin="0,5" Visibility="Collapsed"
+                                      ToolTip="Video-Backend f&#252;r die Kamera. 'Automatisch' l&#228;sst OpenCV das beste Backend w&#228;hlen."/>
+
+                            <TextBlock x:Name="lblRepeatTimeMs" Grid.Row="6" Grid.Column="0" Text="Repeat time (ms):" VerticalAlignment="Center" Margin="0,5"/>
+                            <TextBox x:Name="txtRepeatTimeMs" Grid.Row="6" Grid.Column="1" Width="100" HorizontalAlignment="Left" Margin="0,5"/>
+
+                            <TextBlock x:Name="lblHidProfile" Grid.Row="7" Grid.Column="0" Text="Reader-Profil:" VerticalAlignment="Center" Margin="0,5" Visibility="Collapsed"/>
+                            <ComboBox x:Name="cmbHidProfile" Grid.Row="7" Grid.Column="1" Width="260" HorizontalAlignment="Left" Margin="0,5" Visibility="Collapsed"
+                                      ToolTip="HID-Protokoll-Profil des RFID-Readers. Definiert die Lese- und Beep-Befehle."/>
+                        </Grid>
+
+                        <Separator Margin="0,2,0,8"/>
+
+                        <!-- Virtuagym-Einstellungen -->
+                        <TextBlock x:Name="lblGrpVirtuagym" Text="Virtuagym-Einstellungen" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock x:Name="lblCheckinKey" Grid.Row="0" Grid.Column="0" Text="Check-In Key:" VerticalAlignment="Center" Margin="0,5"/>
+                            <TextBox x:Name="txtMappingCheckinKey" Grid.Row="0" Grid.Column="1" Margin="0,5"
+                                     TextChanged="txtMappingCheckinKey_TextChanged"/>
+
+                            <TextBlock x:Name="lblApiMode" Grid.Row="1" Grid.Column="0" Text="API-Modus:" VerticalAlignment="Center" Margin="0,5"/>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,5" VerticalAlignment="Center">
+                                <TextBlock x:Name="txtApiModeInfo" Foreground="Gray" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                                <Border x:Name="btnApiModeInfo" Margin="6,0,0,0" VerticalAlignment="Center" Cursor="Help"
+                                        Width="16" Height="16" CornerRadius="8"
+                                        Background="#2196F3">
+                                    <Border.ToolTip>
+                                        <ToolTip x:Name="tipApiModeInfo" MaxWidth="420">
+                                            <TextBlock x:Name="txtApiModeTooltip" TextWrapping="Wrap"/>
+                                        </ToolTip>
+                                    </Border.ToolTip>
+                                    <TextBlock Text="i" Foreground="White" FontSize="10" FontWeight="Bold" FontStyle="Italic"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </StackPanel>
+
+                            <TextBlock x:Name="lblDoubleScan" Grid.Row="2" Grid.Column="0" Text="Doppelscan-Schutz:" VerticalAlignment="Center" Margin="0,5"/>
+                            <ComboBox x:Name="cmbDoubleScanThreshold" Grid.Row="2" Grid.Column="1" Width="200" HorizontalAlignment="Left" Margin="0,5"
+                                      ToolTip="Zeitspanne, in der nach einem Check-in kein Check-out ausgel&#246;st wird (Doppelscan-Schutz). 0 = Deaktiviert.">
+                                <ComboBoxItem Content="Deaktiviert" Tag="0"/>
+                                <ComboBoxItem Content="5 Sekunden" Tag="5000"/>
+                                <ComboBoxItem Content="15 Sekunden" Tag="15000"/>
+                                <ComboBoxItem Content="30 Sekunden" Tag="30000"/>
+                                <ComboBoxItem Content="1 Minute" Tag="60000"/>
+                                <ComboBoxItem Content="2 Minuten" Tag="120000"/>
+                                <ComboBoxItem Content="5 Minuten" Tag="300000"/>
+                                <ComboBoxItem Content="10 Minuten" Tag="600000"/>
+                                <ComboBoxItem Content="15 Minuten" Tag="900000"/>
+                                <ComboBoxItem Content="30 Minuten" Tag="1800000"/>
+                            </ComboBox>
+
+                            <TextBlock x:Name="lblCreditServiceName" Grid.Row="3" Grid.Column="0" Text="Dienstleistung:" VerticalAlignment="Center" Margin="0,5"/>
+                            <ComboBox x:Name="cmbCreditService" Grid.Row="3" Grid.Column="1" Margin="0,5"
+                                      ToolTip="Dienstleistung f&#252;r die Guthaben-Punkte gepr&#252;ft werden. Deaktiviert = keine Credit-Pr&#252;fung."/>
+
+                            <TextBlock x:Name="lblAutoCheckout" Grid.Row="4" Grid.Column="0" Text="Auto-Checkout nach:" VerticalAlignment="Center" Margin="0,5"/>
+                            <ComboBox x:Name="cmbAutoCheckoutMinutes" Grid.Row="4" Grid.Column="1" Width="200" HorizontalAlignment="Left" Margin="0,5"
+                                ToolTip="Nach einem Check-in wird das Mitglied automatisch nach der angegebenen Zeit wieder abgemeldet. 0 = Deaktiviert.">
+                                <ComboBoxItem Content="Deaktiviert" Tag="0" IsSelected="True"/>
+                                <ComboBoxItem Content="1 Minute" Tag="1"/>
+                                <ComboBoxItem Content="5 Minuten" Tag="5"/>
+                                <ComboBoxItem Content="15 Minuten" Tag="15"/>
+                                <ComboBoxItem Content="30 Minuten" Tag="30"/>
+                                <ComboBoxItem Content="1 Stunde" Tag="60"/>
+                                <ComboBoxItem Content="2 Stunden" Tag="120"/>
+                                <ComboBoxItem Content="4 Stunden" Tag="240"/>
+                                <ComboBoxItem Content="8 Stunden" Tag="480"/>
+                                <ComboBoxItem Content="12 Stunden" Tag="720"/>
+                            </ComboBox>
+
+                            <TextBlock x:Name="lblDuplicateTimeout" Grid.Row="5" Grid.Column="0" Text="Leser-Entprellung (Sek):" VerticalAlignment="Center" Margin="0,5"/>
+                            <TextBox x:Name="txtDuplicateTimeoutSeconds" Grid.Row="5" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,5"
+                                     ToolTip="Zeitspanne in Sekunden, in der identische Scans vom Leseger&#228;t ignoriert werden. Leer = globaler Standard."/>
+
+                            <TextBlock x:Name="lblCardIdMode" Grid.Row="6" Grid.Column="0" Text="Kartennummer-Format:" VerticalAlignment="Center" Margin="0,5"/>
+                            <StackPanel x:Name="panelCardIdMode" Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Margin="0,5">
+                                <ComboBox x:Name="cmbCardIdMode" Width="350" HorizontalAlignment="Left">
+                                    <ComboBoxItem Content="Standard 10-stellig (EM MARIN, 125 kHz Reader)" Tag="0" IsSelected="True"/>
+                                    <ComboBoxItem Content="Volle UID Dezimal (DESFire, Plus, Ultralight)" Tag="1"/>
+                                    <ComboBoxItem Content="Volle UID Hex (DESFire, Plus, Ultralight)" Tag="2"/>
+                                    <ComboBoxItem Content="MIFARE Classic (4-Byte UID)" Tag="3"/>
+                                </ComboBox>
+                                <Border Margin="6,0,0,0" VerticalAlignment="Center" Cursor="Help"
+                                        Width="16" Height="16" CornerRadius="8"
+                                        Background="#2196F3">
+                                    <Border.ToolTip>
+                                        <ToolTip MaxWidth="420">
+                                            <TextBlock x:Name="txtCardIdModeTooltip" TextWrapping="Wrap"/>
+                                        </ToolTip>
+                                    </Border.ToolTip>
+                                    <TextBlock Text="i" Foreground="White" FontSize="10" FontWeight="Bold" FontStyle="Italic"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ==================== Tab 2: Geräte-Test ==================== -->
+            <TabItem x:Name="tabDeviceTest" Header="Ger&#228;te-Test">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,5,0">
+                    <StackPanel Margin="10">
+
+                        <!-- RFID-Test Buttons / QR-Code-Test Buttons -->
+                        <StackPanel x:Name="panelRfidTest" Orientation="Horizontal" Margin="0,0,0,4">
+                            <Button x:Name="btnMappingTestBeep" Content="Beep" Width="80" Height="28" Margin="0,0,8,0"
+                                    Click="btnMappingTestBeep_Click"
+                                    ToolTip="Sendet einen Beep-Befehl an das ausgew&#228;hlte USB-Ger&#228;t."/>
+                            <Button x:Name="btnMappingTestRead" Content="Card lesen" Width="100" Height="28"
+                                    Click="btnMappingTestRead_Click"
+                                    ToolTip="Sendet einen Read-Befehl und zeigt die gelesene Card-ID an."/>
+                        </StackPanel>
+                        <StackPanel x:Name="panelQrTest" Orientation="Horizontal" Visibility="Collapsed" Margin="0,0,0,4">
+                            <Button x:Name="btnMappingTestQrScan" Content="QR-Code scannen" Width="130" Height="28" Margin="0,0,8,0"
+                                    Click="btnMappingTestQrScan_Click"
+                                    ToolTip="&#214;ffnet die ausgew&#228;hlte Kamera und versucht 10 Sekunden lang einen QR-Code zu lesen."/>
+                            <Button x:Name="btnMappingTestQrStop" Content="Stopp" Width="60" Height="28"
+                                    Click="btnMappingTestQrStop_Click" IsEnabled="False"
+                                    ToolTip="Bricht den laufenden QR-Code-Scan ab."/>
+                        </StackPanel>
+
+                        <!-- Camera Preview (QR only) -->
+                        <Border x:Name="borderCameraPreview" Margin="0,4,0,4" 
+                                HorizontalAlignment="Left" Visibility="Collapsed"
+                                Background="#F5F5F5" CornerRadius="8" BorderBrush="#CCCCCC" BorderThickness="2" Padding="8">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Width="28" Height="28" Margin="0,0,8,0"
+                                            Background="#4CAF50" CornerRadius="4" VerticalAlignment="Center">
+                                        <Viewbox Margin="5">
+                                            <Canvas Width="24" Height="24">
+                                                <Rectangle Canvas.Left="2" Canvas.Top="2" Width="8" Height="8" Fill="White"/>
+                                                <Rectangle Canvas.Left="14" Canvas.Top="2" Width="8" Height="8" Fill="White"/>
+                                                <Rectangle Canvas.Left="2" Canvas.Top="14" Width="8" Height="8" Fill="White"/>
+                                                <Rectangle Canvas.Left="16" Canvas.Top="16" Width="4" Height="4" Fill="White"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                    </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Kamera-Vorschau" FontSize="13" FontWeight="SemiBold" 
+                                                   Foreground="#333333" Margin="0,0,0,2"/>
+                                        <TextBlock Text="QR-Code Scanner Test" FontSize="11" Foreground="#666666"/>
+                                    </StackPanel>
+                                </Grid>
+                                <Grid>
+                                    <Border Background="#222222" CornerRadius="6" BorderBrush="#999999" BorderThickness="1">
+                                        <Image x:Name="imgCameraPreview" Width="360" Height="270" Stretch="Uniform"/>
+                                    </Border>
+                                    <Viewbox Width="120" Height="120" Stretch="Uniform">
+                                        <Canvas Width="100" Height="100">
+                                            <Path Data="M10,10 L10,25 M10,10 L25,10" Stroke="#4CAF50" StrokeThickness="3" 
+                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" Opacity="0.9"/>
+                                            <Path Data="M90,10 L90,25 M90,10 L75,10" Stroke="#4CAF50" StrokeThickness="3" 
+                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" Opacity="0.9"/>
+                                            <Path Data="M10,90 L10,75 M10,90 L25,90" Stroke="#4CAF50" StrokeThickness="3" 
+                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" Opacity="0.9"/>
+                                            <Path Data="M90,90 L90,75 M90,90 L75,90" Stroke="#4CAF50" StrokeThickness="3" 
+                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" Opacity="0.9"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                </Grid>
+                                <TextBlock Text="Positionieren Sie den QR-Code im markierten Bereich" 
+                                           FontSize="11" Foreground="#666666" TextAlignment="Center"
+                                           HorizontalAlignment="Center" Margin="0,8,0,0" FontStyle="Italic"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Device Test Result -->
+                        <TextBlock x:Name="txtDeviceTestResult" Margin="0,2,0,4" TextWrapping="Wrap" Foreground="Gray" FontSize="12"/>
+
+                        <Separator Margin="0,6,0,8"/>
+
+                        <!-- Checkin Test -->
+                        <TextBlock Text="Checkin-Test" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="txtMappingTestCardId" Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center"
+                                     ToolTip="RFID Card-ID f&#252;r den Test-Checkin (manuell eingeben oder vom Reader lesen)"/>
+                            <Button x:Name="btnTestMappingCheckin" Grid.Column="1" Content="Checkin testen" Width="110" Height="28"
+                                    Click="btnTestMappingCheckin_Click"
+                                    ToolTip="Testet einen Checkin mit dem Check-In Key dieses Mappings."/>
+                        </Grid>
+                        <TextBlock x:Name="txtMappingCheckinTestResult" Text="Ready!" Margin="0,4,0,0" TextWrapping="Wrap" Foreground="Gray" FontSize="12"/>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ==================== Tab 3: Relay ==================== -->
+            <TabItem x:Name="tabRelayControl" Header="Relay">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,5,0">
+                    <Grid Margin="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock x:Name="lblRelayEnabled" Grid.Row="0" Grid.Column="0" Text="Relay aktivieren:" VerticalAlignment="Center" Margin="0,5"/>
+                        <CheckBox x:Name="chkMappingRelayEnabled" Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" Margin="0,5"
+                                  Checked="chkMappingRelayEnabled_Changed" Unchecked="chkMappingRelayEnabled_Changed"/>
+
+                        <TextBlock x:Name="lblRelayComPort" Grid.Row="1" Grid.Column="0" Text="Relay COM-Port:" VerticalAlignment="Center" Margin="0,5"/>
+                        <ComboBox x:Name="cmbMappingRelayComPort" Grid.Row="1" Grid.Column="1" Width="120" HorizontalAlignment="Left" Margin="0,5" IsEnabled="False"/>
+
+                        <TextBlock x:Name="lblRelayBaudRate" Grid.Row="2" Grid.Column="0" Text="Baudrate:" VerticalAlignment="Center" Margin="0,5"/>
+                        <ComboBox x:Name="cmbMappingRelayBaudRate" Grid.Row="2" Grid.Column="1" Width="120" HorizontalAlignment="Left" Margin="0,5" IsEnabled="False"
+                                  ToolTip="Baudrate f&#252;r die serielle Kommunikation mit dem Relay-Controller.">
+                            <ComboBoxItem Content="1200" Tag="1200"/>
+                            <ComboBoxItem Content="2400" Tag="2400"/>
+                            <ComboBoxItem Content="4800" Tag="4800"/>
+                            <ComboBoxItem Content="9600" Tag="9600" IsSelected="True"/>
+                            <ComboBoxItem Content="19200" Tag="19200"/>
+                            <ComboBoxItem Content="38400" Tag="38400"/>
+                            <ComboBoxItem Content="57600" Tag="57600"/>
+                            <ComboBoxItem Content="115200" Tag="115200"/>
+                        </ComboBox>
+
+                        <TextBlock x:Name="lblRelayNumber" Grid.Row="3" Grid.Column="0" Text="Relay-Nummer:" VerticalAlignment="Center" Margin="0,5"/>
+                        <ComboBox x:Name="cmbMappingRelayNumber" Grid.Row="3" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,5" IsEnabled="False">
+                            <ComboBoxItem Content="1" Tag="1"/>
+                            <ComboBoxItem Content="2" Tag="2"/>
+                            <ComboBoxItem Content="3" Tag="3"/>
+                            <ComboBoxItem Content="4" Tag="4"/>
+                            <ComboBoxItem Content="5" Tag="5"/>
+                            <ComboBoxItem Content="6" Tag="6"/>
+                            <ComboBoxItem Content="7" Tag="7"/>
+                            <ComboBoxItem Content="8" Tag="8"/>
+                        </ComboBox>
+
+                        <TextBlock x:Name="lblRelayTriggerTime" Grid.Row="4" Grid.Column="0" Text="Schaltzeit (Sek.):" VerticalAlignment="Center" Margin="0,5"/>
+                        <ComboBox x:Name="cmbMappingRelayTriggerTime" Grid.Row="4" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,5" IsEnabled="False">
+                            <ComboBoxItem Content="0.05" Tag="0.05"/>
+                            <ComboBoxItem Content="0.5" Tag="0.5"/>
+                            <ComboBoxItem Content="1" Tag="1"/>
+                            <ComboBoxItem Content="2" Tag="2"/>
+                            <ComboBoxItem Content="3" Tag="3"/>
+                            <ComboBoxItem Content="5" Tag="5"/>
+                            <ComboBoxItem Content="10" Tag="10"/>
+                            <ComboBoxItem Content="15" Tag="15"/>
+                            <ComboBoxItem Content="30" Tag="30"/>
+                            <ComboBoxItem Content="60" Tag="60"/>
+                        </ComboBox>
+
+                        <Button x:Name="btnTestMappingRelay" Grid.Row="5" Grid.Column="1" Content="Relay testen" 
+                                Width="120" Height="28" HorizontalAlignment="Left" Margin="0,8,0,0" IsEnabled="False"
+                                Click="btnTestMappingRelay_Click"
+                                ToolTip="Testet das Relay mit den aktuellen Einstellungen."/>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ==================== Tab 4: Jablotron PG ==================== -->
+            <TabItem x:Name="tabJablotronPGControl" Header="Jablotron PG">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,3,0">
+                    <StackPanel Margin="10">
+
+                        <!-- Gate-Steuerung -->
+                        <TextBlock x:Name="lblPgSectionGate" Text="Gate-Steuerung" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
+
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock x:Name="lblPgEnabled" Grid.Row="0" Grid.Column="0" Text="Gate aktivieren:" VerticalAlignment="Center" Margin="0,5"/>
+                            <CheckBox x:Name="chkPgEnabled" Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" Margin="0,5"
+                                      Checked="chkPgEnabled_Changed" Unchecked="chkPgEnabled_Changed"/>
+
+                            <TextBlock x:Name="lblPgGate" Grid.Row="1" Grid.Column="0" Text="Programmable Gate:" VerticalAlignment="Center" Margin="0,5"/>
+                            <ComboBox x:Name="cmbPgGate" Grid.Row="1" Grid.Column="1" Margin="0,5" IsEnabled="False" DisplayMemberPath="Display"/>
+
+                            <TextBlock x:Name="lblPgTriggerTime" Grid.Row="2" Grid.Column="0" Text="Schaltzeit (Sek.):" VerticalAlignment="Center" Margin="0,5"/>
+                            <ComboBox x:Name="cmbPgTriggerTime" Grid.Row="2" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,5" IsEnabled="False">
+                                <ComboBoxItem Content="1" Tag="1"/>
+                                <ComboBoxItem Content="2" Tag="2"/>
+                                <ComboBoxItem Content="3" Tag="3" IsSelected="True"/>
+                                <ComboBoxItem Content="5" Tag="5"/>
+                                <ComboBoxItem Content="10" Tag="10"/>
+                                <ComboBoxItem Content="15" Tag="15"/>
+                                <ComboBoxItem Content="30" Tag="30"/>
+                                <ComboBoxItem Content="60" Tag="60"/>
+                            </ComboBox>
+                        </Grid>
+
+                        <Separator Margin="0,10,0,6"/>
+
+                        <!-- Trigger-Bedingung -->
+                        <TextBlock x:Name="lblPgSectionCondition" Text="Trigger-Bedingung" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,2"/>
+                        <TextBlock x:Name="lblPgConditionDesc" Text="Legt fest, unter welcher Bedingung das Gate ausgel&#246;st wird."
+                                   FontSize="11" Foreground="Gray" TextWrapping="Wrap" Margin="0,0,0,6"/>
+
+                        <Grid x:Name="gridPgCondition">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock x:Name="lblPgConditionMode" Grid.Row="0" Grid.Column="0" Text="Bedingung:" VerticalAlignment="Center" Margin="0,5"/>
+                            <ComboBox x:Name="cmbPgConditionMode" Grid.Row="0" Grid.Column="1" Width="250" HorizontalAlignment="Left" Margin="0,5" IsEnabled="False"
+                                      SelectionChanged="cmbPgConditionMode_SelectionChanged">
+                                <ComboBoxItem x:Name="cmbPgCondAlways" Content="Immer ausl&#246;sen" Tag="Always" IsSelected="True"/>
+                                <ComboBoxItem x:Name="cmbPgCondOnlyIfOn" Content="Nur wenn Gate = ON" Tag="OnlyIfOn"/>
+                                <ComboBoxItem x:Name="cmbPgCondOnlyIfOff" Content="Nur wenn Gate = OFF" Tag="OnlyIfOff"/>
+                                <ComboBoxItem x:Name="cmbPgCondTimeRange" Content="Nur im Zeitfenster" Tag="TimeRange"/>
+                            </ComboBox>
+
+                            <TextBlock x:Name="lblPgConditionGate" Grid.Row="1" Grid.Column="0" Text="Bedingungs-Gate:" VerticalAlignment="Center" Margin="0,5"/>
+                            <ComboBox x:Name="cmbPgConditionGate" Grid.Row="1" Grid.Column="1" Margin="0,5" IsEnabled="False" DisplayMemberPath="Display"/>
+
+                            <TextBlock x:Name="lblPgConditionTimeFrom" Grid.Row="2" Grid.Column="0" Text="Von (HH:mm):" VerticalAlignment="Center" Margin="0,5" Visibility="Collapsed"/>
+                            <TextBox x:Name="txtPgConditionTimeFrom" Grid.Row="2" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,5" Visibility="Collapsed"
+                                     ToolTip="Startzeit im Format HH:mm (z.B. 06:00)"/>
+
+                            <TextBlock x:Name="lblPgConditionTimeTo" Grid.Row="3" Grid.Column="0" Text="Bis (HH:mm):" VerticalAlignment="Center" Margin="0,5" Visibility="Collapsed"/>
+                            <TextBox x:Name="txtPgConditionTimeTo" Grid.Row="3" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,5" Visibility="Collapsed"
+                                     ToolTip="Endzeit im Format HH:mm (z.B. 22:00)"/>
+                        </Grid>
+
+                        <Separator Margin="0,10,0,6"/>
+
+                        <!-- Aktionen -->
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                            <Button x:Name="btnPgReloadGates" Content="Gates laden" Width="120" Height="28" Margin="0,0,10,0"
+                                    Click="btnPgReloadGates_Click"
+                                    ToolTip="L&#228;dt die Programmable Gates aus der JSON-Datei neu."/>
+                            <Button x:Name="btnTestPg" Content="Gate testen" Width="120" Height="28" IsEnabled="False"
+                                    Click="btnTestPg_Click"
+                                    ToolTip="Testet das Gate: schaltet ON und nach der Schaltzeit automatisch OFF."/>
+                        </StackPanel>
+
+                        <TextBlock x:Name="txtPgStatus" Margin="0,6,0,0" TextWrapping="Wrap" Foreground="Gray" FontSize="12"/>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+        </TabControl>
+    </DockPanel>
+</Window>

@@ -1,0 +1,315 @@
+@using Microsoft.Extensions.Options
+@using Virtuagym.CheckIn.Web.Models
+@using Virtuagym.CheckIn.Web.Components.EditDialogs
+@using Virtuagym.CheckIn.Core.Models
+@using Virtuagym.API.Serialization
+@using Hardware.Models
+@using Hardware.Services
+@using HidLibrary
+@using System.Text
+@inject IOptions<AppSettings> SettingsOptions
+
+<div class="control-panel">
+    <h4>Checkin-Client Mappings</h4>
+    <p>Zuordnung zwischen Eingabegeräten (RFID-Reader, QR-Scanner) und Virtuagym Check-in Clients.</p>
+
+    @if (_mappings.Count == 0)
+    {
+        <p class="text-warn">Keine Mappings konfiguriert.</p>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Typ</th>
+                    <th>Gerät</th>
+                    <th>Hersteller</th>
+                    <th>Check-In Key</th>
+                    <th>Relay</th>
+                    <th>Relay COM</th>
+                    <th>Relay Nr.</th>
+                    <th>PG</th>
+                    <th>PG Gate</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var m in _mappings)
+                {
+                    var item = m;
+                    <tr class="@(_selectedMapping == item ? "row-selected" : "") @(!item.IsDeviceAvailable ? "row-unavailable" : "")"
+                        @onclick="() => _selectedMapping = item"
+                        @ondblclick="() => { _selectedMapping = item; OpenEditDialog(item); }"
+                        style="cursor:pointer;">
+                        <td>@item.Name</td>
+                        <td>@item.InputType</td>
+                        <td>@item.DeviceDescription</td>
+                        <td>@item.Manufacturer</td>
+                        <td class="truncate">@item.CheckinKey</td>
+                        <td>@(item.RelayEnabled ? "✓" : "—")</td>
+                        <td>@item.RelayComPort</td>
+                        <td>@item.RelayNumber</td>
+                        <td>@(item.PgEnabled ? "✓" : "—")</td>
+                        <td>@item.PgGateDisplayName</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <div style="display:flex; gap:10px; margin-top:10px;">
+        <button class="btn" @onclick="AddMapping">Hinzufügen</button>
+        <button class="btn" disabled="@(_selectedMapping == null)" @onclick="() => OpenEditDialog(_selectedMapping!)">Bearbeiten</button>
+        <button class="btn btn-danger" disabled="@(_selectedMapping == null)" @onclick="DeleteMapping">Löschen</button>
+    </div>
+</div>
+
+@* ─── Inline Edit Dialog ─── *@
+@if (_showEditor)
+{
+    <EditCheckinClientMappingDialog
+        Mapping="_editMapping"
+        IsNew="_isNew"
+        AvailableHidDevices="_availableHidDevices"
+        UsedDeviceIds="_usedDeviceIds"
+        OnSave="OnDialogSave"
+        OnCancel="OnDialogCancel"
+        OnRefreshDevices="RefreshAvailableDevices" />
+}
+
+@code {
+    private List<CheckinClientMapping> _mappings = new();
+    private CheckinClientMapping? _selectedMapping;
+    private List<HidDeviceInfo> _availableHidDevices = new();
+    private HashSet<string> _usedDeviceIds = new(StringComparer.OrdinalIgnoreCase);
+
+    // Editor state
+    private bool _showEditor;
+    private bool _isNew;
+    private CheckinClientMapping _editMapping = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        LoadMappings();
+        await RefreshAvailableDevices();
+        await UpdateMappingDeviceDescriptions();
+    }
+
+    private void LoadMappings()
+    {
+        try
+        {
+            string json = SettingsOptions.Value.CheckinClientMappings;
+            if (!string.IsNullOrWhiteSpace(json) && json != "[]")
+            {
+                var serializer = new JsonSerializerAdapter();
+                var loaded = serializer.Deserialize<List<CheckinClientMapping>>(json);
+                if (loaded != null)
+                {
+                    foreach (var m in loaded)
+                        m.EnsureUuid();
+                    _mappings = loaded;
+                }
+            }
+        }
+        catch { _mappings = new(); }
+    }
+
+    private void SaveMappingsToSettings()
+    {
+        var serializer = new JsonSerializerAdapter();
+        SettingsOptions.Value.CheckinClientMappings = serializer.Serialize(_mappings);
+    }
+
+    private async Task RefreshAvailableDevices()
+    {
+        _availableHidDevices = new List<HidDeviceInfo>();
+        try
+        {
+            await Task.Run(() =>
+            {
+                var hidDevices = HidDevices.Enumerate();
+                foreach (var device in hidDevices)
+                {
+                    string deviceId = ExtractDeviceId(device.DevicePath);
+                    if (string.IsNullOrEmpty(deviceId)) continue;
+
+                    string manufacturer = "";
+                    string product = "";
+                    short usagePage = 0, usage = 0;
+                    try
+                    {
+                        device.OpenDevice();
+                        if (device.ReadManufacturer(out byte[] mData))
+                            manufacturer = Encoding.Unicode.GetString(mData).TrimEnd('\0');
+                        if (device.ReadProduct(out byte[] pData))
+                            product = Encoding.Unicode.GetString(pData).TrimEnd('\0');
+                        usagePage = device.Capabilities.UsagePage;
+                        usage = device.Capabilities.Usage;
+                        device.CloseDevice();
+                    }
+                    catch { }
+
+                    if (IsCommonNonRfidDevice(usagePage, usage, manufacturer, product, device.Description))
+                        continue;
+
+                    var parts = new List<string>();
+                    if (!string.IsNullOrWhiteSpace(manufacturer)) parts.Add(manufacturer.Trim());
+                    if (!string.IsNullOrWhiteSpace(product)) parts.Add(product.Trim());
+                    if (parts.Count == 0 && !string.IsNullOrWhiteSpace(device.Description)) parts.Add(device.Description);
+                    if (parts.Count == 0) parts.Add("HID-Gerät");
+                    string displayName = $"{deviceId} - {string.Join(" / ", parts)}";
+
+                    _availableHidDevices.Add(new HidDeviceInfo
+                    {
+                        DevicePath = device.DevicePath,
+                        DeviceId = deviceId,
+                        Manufacturer = manufacturer,
+                        Product = product,
+                        DisplayName = displayName
+                    });
+                }
+            });
+        }
+        catch { }
+    }
+
+    private async Task UpdateMappingDeviceDescriptions()
+    {
+        IReadOnlyList<CameraDeviceInfo>? cameras = null;
+        foreach (var mapping in _mappings)
+        {
+            if (mapping.InputType == CheckinClientMapping.InputTypeQrCode)
+            {
+                cameras ??= await CameraDiscoveryService.GetCamerasAsync();
+                var cam = cameras.FirstOrDefault(c => c.Index == mapping.CameraIndex);
+                if (cam != null)
+                {
+                    mapping.DeviceDescription = cam.DisplayName;
+                    mapping.IsDeviceAvailable = true;
+                }
+                else
+                {
+                    mapping.DeviceDescription = $"Kamera {mapping.CameraIndex} (nicht verfügbar)";
+                    mapping.IsDeviceAvailable = false;
+                }
+            }
+            else
+            {
+                var hidDevice = _availableHidDevices.FirstOrDefault(d => d.DeviceId == mapping.DeviceID);
+                if (hidDevice != null)
+                {
+                    mapping.Manufacturer = hidDevice.Manufacturer?.Trim() ?? "";
+                    var parts = new List<string>();
+                    if (!string.IsNullOrWhiteSpace(hidDevice.Manufacturer)) parts.Add(hidDevice.Manufacturer.Trim());
+                    if (!string.IsNullOrWhiteSpace(hidDevice.Product)) parts.Add(hidDevice.Product.Trim());
+                    string desc = parts.Count > 0 ? string.Join(" / ", parts) : "HID-Gerät";
+                    mapping.DeviceDescription = $"{mapping.DeviceID} - {desc}";
+                    mapping.IsDeviceAvailable = true;
+                }
+                else
+                {
+                    mapping.Manufacturer = "";
+                    mapping.DeviceDescription = !string.IsNullOrWhiteSpace(mapping.DeviceID)
+                        ? $"{mapping.DeviceID} (nicht verbunden)" : "Kein Gerät";
+                    mapping.IsDeviceAvailable = false;
+                }
+            }
+        }
+    }
+
+    private void UpdateUsedDeviceIds(string? excludeDeviceId = null)
+    {
+        _usedDeviceIds = new HashSet<string>(
+            _mappings.Where(m => !string.IsNullOrWhiteSpace(m.DeviceID)).Select(m => m.DeviceID),
+            StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(excludeDeviceId))
+            _usedDeviceIds.Remove(excludeDeviceId);
+    }
+
+    private void AddMapping()
+    {
+        UpdateUsedDeviceIds();
+        _editMapping = new CheckinClientMapping
+        {
+            CheckinKey = SettingsOptions.Value.VirtuagymClubSecret ?? "",
+            DoubleScanThresholdMs = SettingsOptions.Value.DefaultDoubleScanThresholdMs
+        };
+        _isNew = true;
+        _showEditor = true;
+    }
+
+    private void OpenEditDialog(CheckinClientMapping mapping)
+    {
+        UpdateUsedDeviceIds(mapping.DeviceID);
+        _selectedMapping = mapping;
+        // Deep copy via JSON round-trip
+        var serializer = new JsonSerializerAdapter();
+        _editMapping = serializer.Deserialize<CheckinClientMapping>(serializer.Serialize(mapping))!;
+        _isNew = false;
+        _showEditor = true;
+    }
+
+    private async Task DeleteMapping()
+    {
+        if (_selectedMapping == null) return;
+        _mappings.Remove(_selectedMapping);
+        _selectedMapping = null;
+        SaveMappingsToSettings();
+        await Task.CompletedTask;
+    }
+
+    private async Task OnDialogSave(CheckinClientMapping result)
+    {
+        result.EnsureUuid();
+        if (_isNew)
+        {
+            _mappings.Add(result);
+        }
+        else if (_selectedMapping != null)
+        {
+            int idx = _mappings.IndexOf(_selectedMapping);
+            if (idx >= 0) _mappings[idx] = result;
+            _selectedMapping = result;
+        }
+        SaveMappingsToSettings();
+        await UpdateMappingDeviceDescriptions();
+        _showEditor = false;
+    }
+
+    private void OnDialogCancel()
+    {
+        _showEditor = false;
+    }
+
+    private static string? ExtractDeviceId(string devicePath)
+    {
+        if (string.IsNullOrEmpty(devicePath)) return null;
+        string lowerPath = devicePath.ToLower();
+        int vidIndex = lowerPath.IndexOf("vid_");
+        if (vidIndex >= 0)
+        {
+            int endIndex = lowerPath.IndexOf("#{", vidIndex);
+            if (endIndex < 0) endIndex = devicePath.Length;
+            string extracted = devicePath.Substring(vidIndex, endIndex - vidIndex);
+            extracted = extracted.Replace("\\", "&").Replace("#", "&");
+            return extracted.TrimEnd('&');
+        }
+        return null;
+    }
+
+    private static bool IsCommonNonRfidDevice(short usagePage, short usage, string manufacturer, string product, string description)
+    {
+        if (usagePage == 0x01 && usage == 0x02) return true; // Mouse
+        if (usagePage == 0x01 && (usage == 0x06 || usage == 0x07)) return true; // Keyboard
+        if (usagePage == 0x01 && (usage == 0x04 || usage == 0x05)) return true; // Joystick/Gamepad
+        if (usagePage == 0x0C) return true; // Consumer
+        if (usagePage == 0x0B) return true; // Telephony
+
+        string combined = $"{manufacturer} {product} {description}".ToLowerInvariant();
+        string[] excludeKeywords = { "keyboard", "tastatur", "mouse", "maus", "audio", "speaker", "headset",
+            "headphone", "microphone", "video", "webcam", "camera", "printer", "drucker", "storage", "disk", "drive" };
+        return excludeKeywords.Any(k => combined.Contains(k));
+    }
+}

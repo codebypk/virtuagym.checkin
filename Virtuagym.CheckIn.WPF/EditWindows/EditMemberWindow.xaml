@@ -1,0 +1,264 @@
+<Window x:Class="Virtuagym.CheckIn.WPF.EditMemberWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Mitglied bearbeiten" Height="821" Width="782"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Closing="Window_Closing" PreviewKeyDown="Window_PreviewKeyDown">
+	<Grid Margin="10">
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition Width="555*"/>
+			<ColumnDefinition Width="181*"/>
+		</Grid.ColumnDefinitions>
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto"/>
+			<RowDefinition Height="*"/>
+			<RowDefinition Height="Auto"/>
+		</Grid.RowDefinitions>
+
+		<!-- Header: Profilbild + Name -->
+		<Grid Grid.Row="0" Margin="0,0,0,10" Grid.ColumnSpan="2">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="Auto"/>
+				<ColumnDefinition Width="*"/>
+			</Grid.ColumnDefinitions>
+
+			<Border Grid.Column="0" Width="80" Height="80" CornerRadius="40"
+                    BorderBrush="#CCCCCC" BorderThickness="2" Background="#F0F0F0"
+                    Margin="0,0,15,0">
+				<Border.Clip>
+					<EllipseGeometry Center="40,40" RadiusX="40" RadiusY="40"/>
+				</Border.Clip>
+				<Image x:Name="imgAvatar" Stretch="UniformToFill"/>
+			</Border>
+
+			<StackPanel Grid.Column="1" VerticalAlignment="Center">
+				<TextBlock x:Name="txtHeaderName" FontSize="20" FontWeight="Bold"/>
+				<TextBlock x:Name="txtHeaderInfo" FontSize="12" Foreground="Gray" Margin="0,4,0,0"/>
+			</StackPanel>
+		</Grid>
+
+		<!-- Tabs -->
+		<TabControl x:Name="tabControlMember" Grid.Row="1" Grid.ColumnSpan="2">
+			<!-- Tab: Stammdaten -->
+			<TabItem x:Name="tabMasterData" Header="Stammdaten">
+				<ScrollViewer VerticalScrollBarVisibility="Auto">
+					<StackPanel Margin="10">
+						<!-- Persönliche Daten -->
+						<GroupBox x:Name="grpPersonalData" Header="Persönliche Daten" Margin="0,0,0,10">
+							<Grid Margin="10">
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto"/>
+									<RowDefinition Height="Auto"/>
+									<RowDefinition Height="Auto"/>
+									<RowDefinition Height="Auto"/>
+									<RowDefinition Height="Auto"/>
+									<RowDefinition Height="Auto"/>
+									<RowDefinition Height="Auto"/>
+								</Grid.RowDefinitions>
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="140"/>
+									<ColumnDefinition Width="*"/>
+								</Grid.ColumnDefinitions>
+
+								<TextBlock x:Name="lblMemberId" Grid.Row="0" Grid.Column="0" Text="Member-ID:" VerticalAlignment="Center" Margin="0,4"/>
+								<TextBox x:Name="txtMemberId" Grid.Row="0" Grid.Column="1" Margin="0,4" IsReadOnly="True" Background="#F0F0F0"/>
+
+								<TextBlock x:Name="lblFirstname" Grid.Row="1" Grid.Column="0" Text="Vorname:" VerticalAlignment="Center" Margin="0,4"/>
+								<TextBox x:Name="txtFirstname" Grid.Row="1" Grid.Column="1" Margin="0,4"/>
+
+								<TextBlock x:Name="lblLastname" Grid.Row="2" Grid.Column="0" Text="Nachname:" VerticalAlignment="Center" Margin="0,4"/>
+								<TextBox x:Name="txtLastname" Grid.Row="2" Grid.Column="1" Margin="0,4"/>
+
+								<TextBlock x:Name="lblEmail" Grid.Row="3" Grid.Column="0" Text="E-Mail:" VerticalAlignment="Center" Margin="0,4"/>
+								<TextBox x:Name="txtEmail" Grid.Row="3" Grid.Column="1" Margin="0,4"/>
+
+								<TextBlock x:Name="lblGender" Grid.Row="4" Grid.Column="0" Text="Geschlecht:" VerticalAlignment="Center" Margin="0,4"/>
+								<ComboBox x:Name="cmbGender" Grid.Row="4" Grid.Column="1" Width="120" HorizontalAlignment="Left" Margin="0,4" SelectedValuePath="Tag">
+									<ComboBoxItem Content="" Tag=""/>
+									<ComboBoxItem Content="Männlich" Tag="m"/>
+									<ComboBoxItem Content="Weiblich" Tag="f"/>
+								</ComboBox>
+
+								<TextBlock x:Name="lblBirthday" Grid.Row="5" Grid.Column="0" Text="Geburtstag:" VerticalAlignment="Center" Margin="0,4"/>
+								<TextBox x:Name="txtBirthday" Grid.Row="5" Grid.Column="1" Width="150" HorizontalAlignment="Left" Margin="0,4"
+                                         ToolTip="Format: YYYY-MM-DD"/>
+
+								<TextBlock x:Name="lblMemberLang" Grid.Row="6" Grid.Column="0" Text="Sprache:" VerticalAlignment="Center" Margin="0,4"/>
+								<TextBox x:Name="txtLang" Grid.Row="6" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,4"
+                                         ToolTip="z.B. de, en, nl"/>
+							</Grid>
+						</GroupBox>
+
+						<!-- Kontakt & Adresse -->
+						<GroupBox x:Name="grpContact" Header="Kontakt &amp; Adresse" Margin="0,0,0,10">
+							<Grid Margin="10">
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto"/>
+									<RowDefinition Height="Auto"/>
+									<RowDefinition Height="Auto"/>
+									<RowDefinition Height="Auto"/>
+									<RowDefinition Height="Auto"/>
+									<RowDefinition Height="Auto"/>
+								</Grid.RowDefinitions>
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="140"/>
+									<ColumnDefinition Width="*"/>
+								</Grid.ColumnDefinitions>
+
+								<TextBlock x:Name="lblPhone" Grid.Row="0" Grid.Column="0" Text="Telefon:" VerticalAlignment="Center" Margin="0,4"/>
+								<TextBox x:Name="txtPhone" Grid.Row="0" Grid.Column="1" Margin="0,4"/>
+
+								<TextBlock x:Name="lblMobile" Grid.Row="1" Grid.Column="0" Text="Mobil:" VerticalAlignment="Center" Margin="0,4"/>
+								<TextBox x:Name="txtMobile" Grid.Row="1" Grid.Column="1" Margin="0,4"/>
+
+								<TextBlock x:Name="lblStreet" Grid.Row="2" Grid.Column="0" Text="Straße:" VerticalAlignment="Center" Margin="0,4"/>
+								<TextBox x:Name="txtStreet" Grid.Row="2" Grid.Column="1" Margin="0,4"/>
+
+								<TextBlock x:Name="lblStreetExtra" Grid.Row="3" Grid.Column="0" Text="Adresszusatz:" VerticalAlignment="Center" Margin="0,4"/>
+								<TextBox x:Name="txtStreetExtra" Grid.Row="3" Grid.Column="1" Margin="0,4"/>
+
+								<TextBlock x:Name="lblZIP" Grid.Row="4" Grid.Column="0" Text="PLZ:" VerticalAlignment="Center" Margin="0,4"/>
+								<TextBox x:Name="txtZip" Grid.Row="4" Grid.Column="1" Width="120" HorizontalAlignment="Left" Margin="0,4"/>
+
+								<TextBlock x:Name="lblCity" Grid.Row="5" Grid.Column="0" Text="Ort:" VerticalAlignment="Center" Margin="0,4"/>
+								<TextBox x:Name="txtPlace" Grid.Row="5" Grid.Column="1" Margin="0,4"/>
+							</Grid>
+						</GroupBox>
+
+						<!-- RFID & Sonstiges -->
+						<GroupBox x:Name="grpRFID" Header="RFID &amp; Sonstiges">
+							<Grid Margin="10">
+								<Grid.RowDefinitions>
+									<RowDefinition Height="Auto"/>
+									<RowDefinition Height="Auto"/>
+									<RowDefinition Height="Auto"/>
+									<RowDefinition Height="Auto"/>
+								</Grid.RowDefinitions>
+								<Grid.ColumnDefinitions>
+									<ColumnDefinition Width="140"/>
+									<ColumnDefinition Width="*"/>
+								</Grid.ColumnDefinitions>
+
+								<TextBlock x:Name="lblRfidTag" Grid.Row="0" Grid.Column="0" Text="RFID-Tag:" VerticalAlignment="Center" Margin="0,4"/>
+								<TextBox x:Name="txtRfidTag" Grid.Row="0" Grid.Column="1" Margin="0,4"/>
+
+								<TextBlock x:Name="lblExternalId" Grid.Row="1" Grid.Column="0" Text="External-ID:" VerticalAlignment="Center" Margin="0,4"/>
+								<TextBox x:Name="txtExternalId" Grid.Row="1" Grid.Column="1" Margin="0,4"/>
+
+								<TextBlock x:Name="lblIsPro" Grid.Row="2" Grid.Column="0" Text="Pro-Mitglied:" VerticalAlignment="Center" Margin="0,4"/>
+								<CheckBox x:Name="chkIsPro" Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" Margin="0,4"/>
+
+								<TextBlock x:Name="lblActive" Grid.Row="3" Grid.Column="0" Text="Aktiv:" VerticalAlignment="Center" Margin="0,4"/>
+								<CheckBox x:Name="chkActive" Grid.Row="3" Grid.Column="1" VerticalAlignment="Center" Margin="0,4"/>
+							</Grid>
+						</GroupBox>
+					</StackPanel>
+				</ScrollViewer>
+			</TabItem>
+
+			<!-- Tab: Anmelde-History -->
+			<TabItem x:Name="tabHistory" Header="Anmelde-History">
+				<Grid Margin="10">
+					<Grid.RowDefinitions>
+						<RowDefinition Height="Auto"/>
+						<RowDefinition Height="*"/>
+					</Grid.RowDefinitions>
+
+					<StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+						<Button x:Name="btnLoadVisits" Content="History laden" Width="120" Height="28" Margin="0,0,10,0"
+                                Click="btnLoadVisits_Click"/>
+						<TextBlock x:Name="txtVisitStatus" VerticalAlignment="Center" Foreground="Gray" FontSize="12"/>
+					</StackPanel>
+
+					<DataGrid x:Name="dataGridVisits" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True">
+						<DataGrid.Columns>
+							<DataGridTextColumn Header="Datum" Binding="{Binding CheckInFormatted}" Width="160"/>
+							<DataGridTextColumn Header="Check-Out" Binding="{Binding CheckOutFormatted}" Width="160"/>
+							<DataGridTextColumn Header="Status" Binding="{Binding status}" Width="80"/>
+							<DataGridTextColumn Header="Nachricht" Binding="{Binding status_message}" Width="*"/>
+						</DataGrid.Columns>
+					</DataGrid>
+				</Grid>
+			</TabItem>
+			<!-- Tab: Credits -->
+			<TabItem x:Name="tabCredits" Header="Credits">
+				<Grid Margin="10">
+					<Grid.RowDefinitions>
+						<RowDefinition Height="Auto"/>
+						<RowDefinition Height="*"/>
+						<RowDefinition Height="Auto"/>
+					</Grid.RowDefinitions>
+
+					<StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+						<Button x:Name="btnLoadCredits" Content="Credits laden" Width="120" Height="28" Margin="0,0,10,0"
+                                Click="btnLoadCredits_Click"/>
+						<TextBlock x:Name="txtCreditStatus" VerticalAlignment="Center" Foreground="Gray" FontSize="12"/>
+					</StackPanel>
+
+					<DataGrid x:Name="dataGridCredits" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True"
+                              SelectionMode="Single" Margin="0,0,0,10">
+						<DataGrid.Columns>
+							<DataGridTextColumn Header="Anzahl" Binding="{Binding credit_amount}" Width="80"/>
+							<DataGridCheckBoxColumn Header="Unbegrenzt" Binding="{Binding credit_unlimited}" Width="80"/>
+							<DataGridTextColumn Header="Service-Typ" Binding="{Binding service_type}" Width="*"/>
+							<DataGridTextColumn Header="Gültig bis" Binding="{Binding valid_until}" Width="120"/>
+							<DataGridTextColumn Header="Notizen" Binding="{Binding notes}" Width="*"/>
+						</DataGrid.Columns>
+					</DataGrid>
+
+					<GroupBox x:Name="grpAssignCredits" Grid.Row="2" Header="Credits zuweisen">
+						<Grid Margin="10">
+							<Grid.RowDefinitions>
+								<RowDefinition Height="Auto"/>
+								<RowDefinition Height="Auto"/>
+								<RowDefinition Height="Auto"/>
+								<RowDefinition Height="Auto"/>
+								<RowDefinition Height="Auto"/>
+								<RowDefinition Height="Auto"/>
+							</Grid.RowDefinitions>
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="120"/>
+								<ColumnDefinition Width="*"/>
+							</Grid.ColumnDefinitions>
+
+							<TextBlock x:Name="lblCreditAmount" Grid.Row="0" Grid.Column="0" Text="Anzahl:" VerticalAlignment="Center" Margin="0,4"/>
+							<TextBox x:Name="txtCreditAmount" Grid.Row="0" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,4"/>
+
+							<TextBlock x:Name="lblCreditUnlimited" Grid.Row="1" Grid.Column="0" Text="Unbegrenzt:" VerticalAlignment="Center" Margin="0,4"/>
+							<CheckBox x:Name="chkCreditUnlimited" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" Margin="0,4"/>
+
+							<TextBlock x:Name="lblCreditServiceType" Grid.Row="2" Grid.Column="0" Text="Service-Typ:" VerticalAlignment="Center" Margin="0,4"/>
+							<ComboBox x:Name="cmbCreditServiceType" Grid.Row="2" Grid.Column="1" Margin="0,4" IsEditable="True" IsTextSearchEnabled="False"/>
+
+							<TextBlock x:Name="lblCreditValidUntil" Grid.Row="3" Grid.Column="0" Text="Gültig bis:" VerticalAlignment="Center" Margin="0,4"/>
+							<TextBox x:Name="txtCreditValidUntil" Grid.Row="3" Grid.Column="1" Width="150" HorizontalAlignment="Left" Margin="0,4"/>
+
+							<TextBlock x:Name="lblCreditNotes" Grid.Row="4" Grid.Column="0" Text="Notizen:" VerticalAlignment="Center" Margin="0,4"/>
+							<TextBox x:Name="txtCreditNotes" Grid.Row="4" Grid.Column="1" Margin="0,4"/>
+
+							<StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,0">
+								<Button x:Name="btnAssignCredits" Content="Credits zuweisen" Width="130" Height="28" Margin="0,0,10,0"
+                                        Click="btnAssignCredits_Click"/>
+								<TextBlock x:Name="txtAssignCreditStatus" VerticalAlignment="Center" Foreground="Gray" FontSize="12"/>
+							</StackPanel>
+						</Grid>
+					</GroupBox>
+				</Grid>
+			</TabItem>
+		</TabControl>
+
+		<!-- Footer: Buttons -->
+		<Grid Grid.Row="2" Margin="0,10,0,0" Grid.ColumnSpan="2">
+			<Grid.ColumnDefinitions>
+				<ColumnDefinition Width="*"/>
+				<ColumnDefinition Width="Auto"/>
+				<ColumnDefinition Width="Auto"/>
+			</Grid.ColumnDefinitions>
+
+			<TextBlock x:Name="txtSaveStatus" Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="12"/>
+
+			<Button x:Name="btnMemberSave" Grid.Column="1" Content="Speichern" Width="100" Height="30" Margin="0,0,10,0" Click="btnMemberSave_Click"/>
+			<Button x:Name="btnMemberCancel" Grid.Column="2" Content="Schließen" Width="100" Height="30" Click="btnMemberCancel_Click"/>
+		</Grid>
+	</Grid>
+</Window>

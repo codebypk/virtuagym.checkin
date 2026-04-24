@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ============================================================================
+  TEMPLATE – Copy this file to "App.config" and fill in YOUR secret values.
+  App.config is listed in .gitignore and will NOT be committed.
+  ============================================================================
+-->
+<configuration>
+    <configSections>
+        <sectionGroup name="applicationSettings" type="System.Configuration.ApplicationSettingsGroup, System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+            <section name="VirtuagymMemberCheckIn.Properties.Settings" type="System.Configuration.ClientSettingsSection, System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" requirePermission="false"/>
+        </sectionGroup>
+    </configSections>
+    <startup>  
+        <supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.8"/>
+    </startup>
+    <applicationSettings>
+        <VirtuagymMemberCheckIn.Properties.Settings>
+            <setting name="DebugMode" serializeAs="String">
+                <value>True</value>
+            </setting>
+            <setting name="VirtuagymApiKey" serializeAs="String">
+                <value>YOUR_VIRTUAGYM_API_KEY</value>
+            </setting>
+            <setting name="VirtuagymServerUrl" serializeAs="String">
+                <value>https://virtuagym.com/api/</value>
+            </setting>
+            <setting name="VirtuagymClubSecret" serializeAs="String">
+                <value>YOUR_VIRTUAGYM_CLUB_SECRET</value>
+            </setting>
+            <setting name="WelcomeScreenEnabled" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="RepaitTimeInMs" serializeAs="String">
+                <value>400</value>
+            </setting>
+            <setting name="WelcomeScreenMonitor" serializeAs="String">
+                <value>1</value>
+            </setting>
+            <setting name="CheckinClientMappings" serializeAs="String">
+                <value>[]</value>
+            </setting>
+            <setting name="ShowClubLogo" serializeAs="String">
+                <value>False</value>
+            </setting>
+            <setting name="ClubLogoPath" serializeAs="String">
+                <value />
+            </setting>
+            <setting name="MemberCheckinApiV0Key" serializeAs="String">
+                <value>YOUR_MEMBER_CHECKIN_API_KEY</value>
+            </setting>
+            <setting name="CacheSyncEnabled" serializeAs="String">
+                <value>True</value>
+            </setting>
+            <setting name="CacheSyncIntervalMinutes" serializeAs="String">
+                <value>60</value>
+            </setting>
+            <setting name="SoundCheckinSuccess" serializeAs="String">
+                <value>Resources\sounds\login_succes.wav</value>
+            </setting>
+            <setting name="SoundCheckinWarn" serializeAs="String">
+                <value>Resources\sounds\notification.wav</value>
+            </setting>
+            <setting name="SoundCheckinError" serializeAs="String">
+                <value>Resources\sounds\error.wav</value>
+            </setting>
+            <setting name="SoundCheckinDoubleScan" serializeAs="String">
+                <value>Resources\sounds\login_try.wav</value>
+            </setting>
+            <setting name="AppLanguage" serializeAs="String">
+                <value>de</value>
+            </setting>
+            <setting name="IdleHintRfidAndQrCode" serializeAs="String">
+                <value>Bitte halten Sie Ihre Karte an das Lesegerät oder scannen Sie Ihren QR-Code</value>
+            </setting>
+            <setting name="IdleHintQrCode" serializeAs="String">
+                <value>Bitte scannen Sie Ihren QR-Code</value>
+            </setting>
+            <setting name="IdleHintRfid" serializeAs="String">
+                <value>Bitte halten Sie Ihre Karte an das Lesegerät</value>
+            </setting>
+            <setting name="CheckinSuccessText" serializeAs="String">
+                <value>Check-in erfolgreich</value>
+            </setting>
+            <setting name="CheckinNotFoundText" serializeAs="String">
+                <value>Nicht gefunden</value>
+            </setting>
+            <setting name="CheckinUnknownErrorText" serializeAs="String">
+                <value>Unbekannter Fehler</value>
+            </setting>
+            <setting name="ApiMsgMemberNotFoundByRfid" serializeAs="String">
+                <value>Es wurde kein Mitglied mit der Kartennummer „{0}" gefunden.</value>
+            </setting>
+            <setting name="ApiMsgDoubleScanBlocked" serializeAs="String">
+                <value>Der letzte Check-in liegt weniger als {0} zurück, der Check-out wird übersprungen.</value>
+            </setting>
+            <setting name="ApiMsgCheckinSuccess" serializeAs="String">
+                <value>{0} wurde eingecheckt.</value>
+            </setting>
+            <setting name="ApiMsgCheckoutSuccess" serializeAs="String">
+                <value>{0} wurde ausgecheckt.</value>
+            </setting>
+            <setting name="ApiMsgCheckinFailed" serializeAs="String">
+                <value>Check-in fehlgeschlagen.</value>
+            </setting>
+            <setting name="ApiMsgCheckoutFailed" serializeAs="String">
+                <value>Check-out fehlgeschlagen.</value>
+            </setting>
+            <setting name="ApiMsgInsufficientCredits" serializeAs="String">
+                <value>Nicht genügend Guthaben für „{0}".</value>
+            </setting>
+            <setting name="ApiMsgMemberNotActive" serializeAs="String">
+                <value>Das Mitglied „{0}" ist nicht aktiv.</value>
+            </setting>
+            <setting name="DuplicateTimeoutSeconds" serializeAs="String">
+                <value>5</value>
+            </setting>
+            <setting name="WelcomeIdleTimeoutMs" serializeAs="String">
+                <value>5000</value>
+            </setting>
+            <setting name="BackgroundRotationIntervalMs" serializeAs="String">
+                <value>10000</value>
+            </setting>
+            <setting name="LogRetentionDays" serializeAs="String">
+                <value>30</value>
+            </setting>
+            <setting name="ShowQrCameraPreviewOnWelcome" serializeAs="String">
+                <value>True</value>
+            </setting>
+            <setting name="ClearTransientMemberDataOnStartup" serializeAs="String">
+                <value>True</value>
+            </setting>
+            <setting name="CreditsCacheTtlMinutes" serializeAs="String">
+                <value>60</value>
+            </setting>
+            <setting name="DefaultDoubleScanThresholdMs" serializeAs="String">
+                <value>60000</value>
+            </setting>
+            <setting name="MemberCheckinApiV0Username" serializeAs="String">
+                <value>YOUR_CHECKIN_API_USERNAME</value>
+            </setting>
+            <setting name="MemberCheckinApiV0Password" serializeAs="String">
+                <value>YOUR_CHECKIN_API_PASSWORD</value>
+            </setting>
+            <setting name="VirtuagymProfileImageUrl" serializeAs="String">
+                <value>https://static.virtuagym.com/v29524004/thumb/userpic/m/</value>
+            </setting>
+            <setting name="JablotronApiUrl" serializeAs="String">
+                <value>https://api.jablonet.net/api/2.4</value>
+            </setting>
+            <setting name="JablotronApiUsername" serializeAs="String">
+                <value>YOUR_JABLOTRON_USERNAME</value>
+            </setting>
+            <setting name="JablotronApiPassword" serializeAs="String">
+                <value>YOUR_JABLOTRON_PASSWORD</value>
+            </setting>
+        </VirtuagymMemberCheckIn.Properties.Settings>
+                </applicationSettings>
+            </configuration>

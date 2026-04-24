@@ -1,0 +1,120 @@
+@inherits LayoutComponentBase
+@using Microsoft.Extensions.Options
+@using Virtuagym.CheckIn.Web.Models
+@using Virtuagym.CheckIn.Core.Models
+
+<div class="app-layout">
+    <header class="title-bar">
+        <img src="images/Main.ico" alt="Icon" class="title-icon" />
+        <span class="title-text">Virtuagym Member Check-In</span>
+        <nav class="title-nav">
+            <a href="/" class="nav-link @GetActiveClass("/")">Log</a>
+            <a href="/settings" class="nav-link @GetActiveClass("/settings")">Settings</a>
+            <div class="nav-dropdown">
+                <button class="nav-link @GetActiveClass("/welcome")" @onclick="ToggleDropdown" @onclick:stopPropagation="true">
+                    Welcome Screen <span class="dropdown-arrow">▾</span>
+                </button>
+                @if (_dropdownOpen)
+                {
+                    <div class="nav-dropdown-menu" @onclick:stopPropagation="true">
+                        <a href="/welcome" class="nav-dropdown-item" @onclick="ClearAndClose">Alle Geräte</a>
+                        @if (_deviceNames.Length > 0)
+                        {
+                            <div class="nav-dropdown-divider"></div>
+                            @foreach (var name in _deviceNames)
+                            {
+                                var deviceName = name;
+                                <label class="nav-dropdown-check">
+                                    <input type="checkbox" checked="@IsSelected(deviceName)"
+                                           @onchange="() => ToggleDevice(deviceName)" />
+                                    @deviceName
+                                </label>
+                            }
+                            <div class="nav-dropdown-divider"></div>
+                            <button class="nav-dropdown-item nav-dropdown-go" @onclick="NavigateToSelected">
+                                Öffnen@(_selectedDevices.Count > 0 ? $" ({_selectedDevices.Count})" : "")
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        </nav>
+    </header>
+    <main class="content" @onclick="CloseDropdown">
+        @Body
+    </main>
+</div>
+
+@code {
+    [Inject] private NavigationManager Navigation { get; set; } = default!;
+    [Inject] private IOptions<AppSettings> SettingsOptions { get; set; } = default!;
+
+    private bool _dropdownOpen;
+    private string[] _deviceNames = [];
+    private HashSet<string> _selectedDevices = new(StringComparer.OrdinalIgnoreCase);
+
+    protected override void OnInitialized()
+    {
+        try
+        {
+            var json = SettingsOptions.Value.CheckinClientMappings;
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                var mappings = System.Text.Json.JsonSerializer.Deserialize<List<CheckinClientMapping>>(json);
+                _deviceNames = mappings?
+                    .Where(m => !string.IsNullOrWhiteSpace(m.Name))
+                    .Select(m => m.Name)
+                    .Distinct()
+                    .ToArray() ?? [];
+            }
+        }
+        catch { /* invalid JSON – show no device entries */ }
+
+        // Pre-select devices from current URL
+        var uri = new Uri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var current = query["device"];
+        if (!string.IsNullOrEmpty(current))
+        {
+            foreach (var d in current.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                _selectedDevices.Add(d);
+        }
+    }
+
+    private bool IsSelected(string name) => _selectedDevices.Contains(name);
+
+    private void ToggleDevice(string name)
+    {
+        if (!_selectedDevices.Remove(name))
+            _selectedDevices.Add(name);
+    }
+
+    private void NavigateToSelected()
+    {
+        _dropdownOpen = false;
+        if (_selectedDevices.Count == 0)
+        {
+            Navigation.NavigateTo("/welcome");
+        }
+        else
+        {
+            var param = string.Join(",", _selectedDevices.Select(Uri.EscapeDataString));
+            Navigation.NavigateTo($"/welcome?device={param}");
+        }
+    }
+
+    private void ClearAndClose()
+    {
+        _selectedDevices.Clear();
+        _dropdownOpen = false;
+    }
+
+    private void ToggleDropdown() => _dropdownOpen = !_dropdownOpen;
+    private void CloseDropdown() => _dropdownOpen = false;
+
+    private string GetActiveClass(string path)
+    {
+        var uri = new Uri(Navigation.Uri);
+        return uri.AbsolutePath.Equals(path, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+    }
+}

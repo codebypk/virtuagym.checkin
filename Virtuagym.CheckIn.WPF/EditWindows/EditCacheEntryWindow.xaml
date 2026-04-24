@@ -1,0 +1,60 @@
+<Window x:Class="Virtuagym.CheckIn.WPF.EditCacheEntryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Cache-Eintrag bearbeiten" Height="480" Width="500" 
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+            <GroupBox x:Name="grpCacheEntry" Header="Cache-Eintrag" Margin="0,0,0,10">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock x:Name="lblCacheMemberId" Grid.Row="0" Grid.Column="0" Text="Member-ID:" VerticalAlignment="Center" Margin="0,4"/>
+                    <TextBox x:Name="txtMemberId" Grid.Row="0" Grid.Column="1" Margin="0,4" IsReadOnly="True" Background="#F0F0F0"/>
+
+                    <TextBlock x:Name="lblCacheFirstname" Grid.Row="1" Grid.Column="0" Text="Vorname:" VerticalAlignment="Center" Margin="0,4"/>
+                    <TextBox x:Name="txtFirstname" Grid.Row="1" Grid.Column="1" Margin="0,4"/>
+
+                    <TextBlock x:Name="lblCacheLastname" Grid.Row="2" Grid.Column="0" Text="Nachname:" VerticalAlignment="Center" Margin="0,4"/>
+                    <TextBox x:Name="txtLastname" Grid.Row="2" Grid.Column="1" Margin="0,4"/>
+
+                    <TextBlock x:Name="lblCacheEmail" Grid.Row="3" Grid.Column="0" Text="E-Mail:" VerticalAlignment="Center" Margin="0,4"/>
+                    <TextBox x:Name="txtEmail" Grid.Row="3" Grid.Column="1" Margin="0,4"/>
+
+                    <TextBlock x:Name="lblCachePhone" Grid.Row="4" Grid.Column="0" Text="Telefon:" VerticalAlignment="Center" Margin="0,4"/>
+                    <TextBox x:Name="txtPhone" Grid.Row="4" Grid.Column="1" Margin="0,4"/>
+
+                    <TextBlock x:Name="lblRfidLocal" Grid.Row="5" Grid.Column="0" Text="RFID-Tag:" VerticalAlignment="Center" Margin="0,4"/>
+                    <TextBox x:Name="txtRfidTag" Grid.Row="5" Grid.Column="1" Margin="0,4"
+                             ToolTip="Lokaler RFID-Tag. Wird bei API-Sync nicht &#252;berschrieben."/>
+
+                    <TextBlock x:Name="lblCacheActive" Grid.Row="7" Grid.Column="0" Text="Aktiv:" VerticalAlignment="Center" Margin="0,4"/>
+                    <CheckBox x:Name="chkActive" Grid.Row="7" Grid.Column="1" VerticalAlignment="Center" Margin="0,4"/>
+                </Grid>
+            </GroupBox>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button x:Name="btnSave" Content="Speichern" Width="100" Height="30" Margin="0,0,10,0" Click="btnSave_Click"/>
+            <Button x:Name="btnCancel" Content="Abbrechen" Width="100" Height="30" Click="btnCancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

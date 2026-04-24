@@ -1,0 +1,50 @@
+@* Modal dialog for editing a member cache entry *@
+<div class="modal-overlay @(_visible ? "visible" : "")">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h4>Edit Cache Entry</h4>
+            <button class="modal-close" @onclick="Close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Member ID:</label>
+                <input type="number" @bind="MemberId" class="form-input" />
+            </div>
+            <div class="form-group">
+                <label>RFID Tag:</label>
+                <input type="text" @bind="RfidTag" class="form-input" />
+            </div>
+            <div class="form-group">
+                <label>First Name:</label>
+                <input type="text" @bind="Firstname" class="form-input" />
+            </div>
+            <div class="form-group">
+                <label>Last Name:</label>
+                <input type="text" @bind="Lastname" class="form-input" />
+            </div>
+            <div class="form-group">
+                <label>Active:</label>
+                <input type="checkbox" @bind="Active" />
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" @onclick="Save">Save</button>
+            <button class="btn btn-secondary" @onclick="Close">Cancel</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool _visible;
+
+    [Parameter] public int MemberId { get; set; }
+    [Parameter] public string RfidTag { get; set; } = "";
+    [Parameter] public string Firstname { get; set; } = "";
+    [Parameter] public string Lastname { get; set; } = "";
+    [Parameter] public bool Active { get; set; } = true;
+    [Parameter] public EventCallback<bool> OnClose { get; set; }
+
+    public void Show() { _visible = true; StateHasChanged(); }
+    private async Task Close() { _visible = false; await OnClose.InvokeAsync(false); }
+    private async Task Save() { _visible = false; await OnClose.InvokeAsync(true); }
+}

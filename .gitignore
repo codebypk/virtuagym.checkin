@@ -1,0 +1,20 @@
+**/.vs
+**/*.user
+**/*.suo
+**/*.fdb
+**/bin
+**/obj
+**/TestResults
+**/Resources/data/club_services.json
+**/Resources/data/jablotron_gates.json
+**/Resources/data/membercache.json
+**/Resources/backgrounds
+**/Resources/avatars
+
+# Secret-bearing config files – use *.template versions as reference
+**/appsettings.json
+**/App.config
+**/Properties/Settings.settings
+**/Properties/Settings.Designer.cs
+PROD.CheckIn.config
+Virtuagym.CheckIn.Web/wwwroot/images/backgrounds/background.png

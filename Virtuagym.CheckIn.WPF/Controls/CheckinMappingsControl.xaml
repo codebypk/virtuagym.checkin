@@ -1,0 +1,55 @@
+<UserControl x:Class="Virtuagym.CheckIn.WPF.Controls.CheckinMappingsControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:local="clr-namespace:Virtuagym.CheckIn.WPF"
+             mc:Ignorable="d"
+             d:DesignHeight="450" d:DesignWidth="800">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <DataGrid x:Name="dataGridCheckinMappings" Grid.Row="0"
+                  AutoGenerateColumns="False" 
+                  IsReadOnly="True"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  SelectionMode="Single"
+                  Margin="0,0,0,10">
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsDeviceAvailable}" Value="False">
+                            <Setter Property="Background" Value="#FFFDE0E0"/>
+                            <Setter Property="Foreground" Value="#FFB71C1C"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="120"/>
+                <DataGridTextColumn Header="Typ" Binding="{Binding InputType}" Width="60"/>
+                <DataGridTextColumn Header="Gerät" Binding="{Binding DeviceDescription}" Width="*"/>
+                <DataGridTextColumn Header="Hersteller" Binding="{Binding Manufacturer}" Width="120"/>
+                <DataGridTextColumn Header="Check-In Key" Binding="{Binding CheckinKey}" Width="180"/>
+                <DataGridCheckBoxColumn Header="Relay" Binding="{Binding RelayEnabled}" Width="50"/>
+                <DataGridTextColumn Header="Relay COM" Binding="{Binding RelayComPort}" Width="80"/>
+                <DataGridTextColumn Header="Relay Nr." Binding="{Binding RelayNumber}" Width="60"/>
+                <DataGridCheckBoxColumn Header="PG" Binding="{Binding PgEnabled}" Width="40"/>
+                <DataGridTextColumn Header="PG Gate" Binding="{Binding PgGateDisplayName}" Width="120"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal">
+            <Button x:Name="btnAddCheckinMapping" Content="Hinzufügen" Width="100" Height="28" Margin="0,0,10,0"
+                    Click="btnAddCheckinMapping_Click"/>
+            <Button x:Name="btnEditCheckinMapping" Content="Bearbeiten" Width="100" Height="28" Margin="0,0,10,0"
+                    Click="btnEditCheckinMapping_Click"/>
+            <Button x:Name="btnDeleteCheckinMapping" Content="Löschen" Width="100" Height="28" Margin="0,0,10,0"
+                    Click="btnDeleteCheckinMapping_Click"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

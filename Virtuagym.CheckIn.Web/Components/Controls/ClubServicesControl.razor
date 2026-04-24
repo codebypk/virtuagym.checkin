@@ -1,0 +1,167 @@
+@using Virtuagym.CheckIn.Core.Services
+@using Virtuagym.CheckIn.Core.Models
+
+<div class="control-panel">
+    <h4>Club Services</h4>
+    <p>Verwalten Sie hier die Club-Services, die aus der club_services.json geladen werden. Diese Services werden für die Credit-Prüfung bei Check-ins verwendet.</p>
+
+    @if (_services.Count == 0)
+    {
+        <p class="text-muted">Keine Club-Services geladen.</p>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Club-ID</th>
+                    <th>Service-ID</th>
+                    <th>Servicename</th>
+                    <th>Min. Credits</th>
+                    <th>Aktiv</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var s in _services)
+                {
+                    var item = s;
+                    <tr>
+                        <td>@item.club_id</td>
+                        <td>@item.service_id</td>
+                        <td>@item.servicename</td>
+                        <td>@item.min_credits</td>
+                        <td>@(item.isActive ? "✓" : "—")</td>
+                        <td>
+                            <button class="btn btn-sm" @onclick="() => EditService(item)">✏️</button>
+                            <button class="btn btn-sm btn-danger" @onclick="() => DeleteService(item)">🗑️</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <div style="display:flex; gap:10px; margin-top:10px;">
+        <button class="btn" @onclick="AddService" title="Fügt einen neuen Club-Service hinzu.">Service hinzufügen</button>
+        <button class="btn btn-secondary" @onclick="ReloadServices" title="Lädt die Services aus der club_services.json neu.">Neu laden</button>
+        @if (!string.IsNullOrEmpty(_status))
+        {
+            <span class="text-muted" style="align-self:center;">@_status</span>
+        }
+    </div>
+
+    @if (_showEditor)
+    {
+        <fieldset style="margin-top:16px;">
+            <legend>@(_isNew ? "Neuer Service" : "Service bearbeiten")</legend>
+            <div class="form-group">
+                <label>Club-ID:</label>
+                <input type="text" @bind="_editClubId" class="form-input" style="width:120px;" />
+            </div>
+            <div class="form-group">
+                <label>Service-ID:</label>
+                <input type="text" @bind="_editServiceId" class="form-input" style="width:200px;" />
+            </div>
+            <div class="form-group">
+                <label>Servicename:</label>
+                <input type="text" @bind="_editServiceName" class="form-input" />
+            </div>
+            <div class="form-group">
+                <label>Min. Credits:</label>
+                <input type="number" @bind="_editMinCredits" class="form-input" style="width:100px;" />
+            </div>
+            <div class="form-group">
+                <label>Aktiv:</label>
+                <input type="checkbox" @bind="_editIsActive" />
+            </div>
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button class="btn" @onclick="SaveService">Speichern</button>
+                <button class="btn btn-secondary" @onclick="CancelEdit">Abbrechen</button>
+            </div>
+        </fieldset>
+    }
+</div>
+
+@code {
+    private List<ClubService> _services = new();
+    private string _status = "";
+    private bool _showEditor;
+    private bool _isNew;
+    private ClubService? _editOriginal;
+
+    private string _editClubId = "";
+    private string _editServiceId = "";
+    private string _editServiceName = "";
+    private int _editMinCredits;
+    private bool _editIsActive = true;
+
+    protected override void OnInitialized()
+    {
+        ReloadServices();
+    }
+
+    private void ReloadServices()
+    {
+        try
+        {
+            _services = ClubServiceLoader.Load() ?? new();
+            _status = $"{_services.Count} Service(s) geladen.";
+        }
+        catch (Exception ex)
+        {
+            _services = new();
+            _status = $"Fehler: {ex.Message}";
+        }
+    }
+
+    private void AddService()
+    {
+        _editOriginal = null;
+        _editClubId = ""; _editServiceId = ""; _editServiceName = ""; _editMinCredits = 0; _editIsActive = true;
+        _isNew = true;
+        _showEditor = true;
+    }
+
+    private void EditService(ClubService s)
+    {
+        _editOriginal = s;
+        _editClubId = s.club_id.ToString(); _editServiceId = s.service_id; _editServiceName = s.servicename;
+        _editMinCredits = s.min_credits; _editIsActive = s.isActive;
+        _isNew = false;
+        _showEditor = true;
+    }
+
+    private void DeleteService(ClubService s)
+    {
+        _services.Remove(s);
+        SaveServicesToDisk();
+        _status = "Service gelöscht.";
+    }
+
+    private void SaveService()
+    {
+        var entry = _isNew ? new ClubService() : _editOriginal!;
+        entry.club_id = int.TryParse(_editClubId, out var cid) ? cid : 0;
+        entry.service_id = _editServiceId;
+        entry.servicename = _editServiceName;
+        entry.min_credits = _editMinCredits;
+        entry.isActive = _editIsActive;
+
+        if (_isNew) _services.Add(entry);
+        SaveServicesToDisk();
+        _showEditor = false;
+        _status = "Service gespeichert.";
+    }
+
+    private void CancelEdit() => _showEditor = false;
+
+    private void SaveServicesToDisk()
+    {
+        try
+        {
+            ClubServiceLoader.ClearCache();
+        }
+        catch { /* best effort */ }
+    }
+}

@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <OutputType>Library</OutputType>
+    <RuntimeIdentifiers>win</RuntimeIdentifiers>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="11.0.0-preview.2.26159.112" />
+    <PackageReference Include="System.IO.Ports" Version="11.0.0-preview.2.26159.112" />
+    <PackageReference Include="hidlibrary">
+      <Version>3.3.40</Version>
+    </PackageReference>
+    <PackageReference Include="OpenCvSharp4.Windows" Version="4.11.0.20250506" />
+    <PackageReference Include="OpenCvSharp4.Extensions" Version="4.11.0.20250506" />
+    <PackageReference Include="System.Management" Version="10.0.0-preview.3.25171.5" />
+    <PackageReference Include="ZXing.Net" Version="0.16.11" />
+    <PackageReference Include="ZXing.Net.Bindings.Windows.Compatibility" Version="0.16.14" />
+  </ItemGroup>
+</Project>

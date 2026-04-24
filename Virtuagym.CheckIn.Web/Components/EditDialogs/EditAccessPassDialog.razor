@@ -1,0 +1,106 @@
+@using AccessPass.Models
+
+<div class="modal-overlay visible">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-header">
+            <h4>@(IsNew ? "Neuen Access Pass erstellen" : $"Access Pass bearbeiten: {Entry.DisplayName}")</h4>
+            <button class="modal-close" @onclick="Cancel">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="display:grid; grid-template-columns:160px 1fr; gap:8px 12px; align-items:center;">
+
+                <label>Name:</label>
+                <input type="text" class="form-input" @bind="_name" placeholder="Name des Passinhabers" />
+
+                <label>Card-ID:</label>
+                <input type="text" class="form-input" @bind="_cardId" placeholder="RFID-Karten-Nr. oder eindeutige ID" />
+
+                <label>Gesamte Nutzungen:</label>
+                <input type="number" class="form-input" style="width:100px;" min="1" @bind="_totalUses" />
+
+                <label>Verbleibende Nutzungen:</label>
+                <input type="number" class="form-input" style="width:100px;" min="0" @bind="_remainingUses" />
+
+                <label>Gültig von:</label>
+                <input type="datetime-local" class="form-input" style="width:220px;" @bind="_validFrom" />
+
+                <label>Gültig bis:</label>
+                <input type="datetime-local" class="form-input" style="width:220px;" @bind="_validUntil" />
+
+                <label>Aktiv:</label>
+                <input type="checkbox" @bind="_isActive" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="test-result error" style="margin-top:12px;">@_error</div>
+            }
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" @onclick="Cancel">Abbrechen</button>
+            <button class="btn" @onclick="Save">Speichern</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public AccessPassEntry Entry { get; set; } = new();
+    [Parameter] public bool IsNew { get; set; }
+    [Parameter] public EventCallback<AccessPassEntry> OnSave { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private string? _name;
+    private string? _cardId;
+    private int _totalUses;
+    private int _remainingUses;
+    private DateTime? _validFrom;
+    private DateTime? _validUntil;
+    private bool _isActive;
+    private string? _error;
+
+    protected override void OnParametersSet()
+    {
+        _name = Entry.Name;
+        _cardId = Entry.CardId;
+        _totalUses = Entry.TotalUses;
+        _remainingUses = Entry.RemainingUses;
+        _isActive = Entry.IsActive;
+
+        _validFrom = TryParseIso(Entry.ValidFrom);
+        _validUntil = TryParseIso(Entry.ValidUntil);
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_name) && string.IsNullOrWhiteSpace(_cardId))
+        {
+            _error = "Name oder Card-ID muss angegeben werden.";
+            return;
+        }
+        if (_totalUses < 1)
+        {
+            _error = "Gesamte Nutzungen muss mindestens 1 sein.";
+            return;
+        }
+
+        Entry.Name = _name?.Trim();
+        Entry.CardId = _cardId?.Trim();
+        Entry.TotalUses = _totalUses;
+        Entry.RemainingUses = _remainingUses;
+        Entry.IsActive = _isActive;
+        Entry.ValidFrom = _validFrom?.ToUniversalTime().ToString("o");
+        Entry.ValidUntil = _validUntil?.ToUniversalTime().ToString("o");
+
+        await OnSave.InvokeAsync(Entry);
+    }
+
+    private async Task Cancel() => await OnCancel.InvokeAsync();
+
+    private static DateTime? TryParseIso(string? iso)
+    {
+        if (string.IsNullOrWhiteSpace(iso)) return null;
+        return DateTime.TryParse(iso, null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt)
+            ? dt.ToLocalTime()
+            : null;
+    }
+}

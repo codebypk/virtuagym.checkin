@@ -1,0 +1,220 @@
+@using AccessPass.Models
+@using AccessPass.Services
+@inject IAccessPassService AccessPassService
+@inject AccessPassQrService QrService
+
+<div class="control-panel">
+    <h4>Access Passes</h4>
+    <p>Temporäre Zugangspässe anlegen, bearbeiten und verwalten.</p>
+
+    <div style="margin-bottom:12px; display:flex; gap:8px; align-items:center;">
+        <button class="btn" @onclick="OpenCreateDialog">+ Neuen Pass erstellen</button>
+        <span class="text-muted">@_passes.Count Pass(e) gesamt</span>
+    </div>
+
+    @if (_passes.Count == 0)
+    {
+        <p class="text-warn">Keine Access Passes vorhanden.</p>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Card-ID</th>
+                    <th>Verbleibend</th>
+                    <th>Gültig bis</th>
+                    <th>Status</th>
+                    <th>Eingecheckt</th>
+                    <th>Erstellt</th>
+                    <th style="width:220px;">Aktionen</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var pass in _passes)
+                {
+                    var p = pass;
+                    <tr class="@(p.IsCheckedIn ? "row-selected" : "") @(!p.IsActive ? "row-unavailable" : "")">
+                        <td>@p.DisplayName</td>
+                        <td class="truncate">@(p.CardId ?? "—")</td>
+                        <td>@p.RemainingUses / @p.TotalUses</td>
+                        <td>@FormatDate(p.ValidUntil)</td>
+                        <td>
+                            @if (!p.IsActive) { <span style="color:var(--color-error);">Deaktiviert</span> }
+                            else if (!p.IsValid) { <span style="color:var(--color-warning);">Abgelaufen</span> }
+                            else { <span style="color:var(--color-success);">Aktiv</span> }
+                        </td>
+                        <td>@(p.IsCheckedIn ? "✓ Ja" : "—")</td>
+                        <td>@FormatDate(p.CreatedAt)</td>
+                        <td>
+                            <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" @onclick="() => OpenEditDialog(p)">Bearbeiten</button>
+                            <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px;" @onclick="() => ShowQrCode(p)">QR</button>
+                            @if (p.IsActive)
+                            {
+                                <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px; background:#e65100;" @onclick="() => DeactivatePass(p)">Deaktivieren</button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-secondary" style="padding:4px 10px; font-size:12px; background:#b71c1c;" @onclick="() => DeletePass(p)">Löschen</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@* ── Edit / Create Dialog ── *@
+@if (_showEditDialog)
+{
+    <EditAccessPassDialog Entry="_editEntry" IsNew="_isNew"
+                          OnSave="HandleSave" OnCancel="CloseEditDialog" />
+}
+
+@* ── QR Code Dialog ── *@
+@if (_showQrDialog && _qrEntry != null)
+{
+    <div class="modal-overlay visible">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h4>QR-Code: @_qrEntry.DisplayName</h4>
+                <button class="modal-close" @onclick="CloseQrDialog">&times;</button>
+            </div>
+            <div class="modal-body" style="text-align:center;">
+                @if (!string.IsNullOrEmpty(_qrDataUri))
+                {
+                    <img src="@_qrDataUri" alt="QR-Code" style="max-width:280px;" />
+                    <p class="text-muted" style="margin-top:8px; word-break:break-all; font-size:11px;">@_qrToken</p>
+                    <div style="margin-top:8px;">
+                        <label style="font-size:12px;">Gültigkeit (Stunden):</label>
+                        <input type="number" class="form-input" style="width:100px; display:inline-block;" min="0" @bind="_qrValidHours" />
+                        <button class="btn" style="padding:4px 12px; font-size:12px;" @onclick="() => ShowQrCode(_qrEntry)">Neu generieren</button>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-warn">QR-Code konnte nicht generiert werden. Prüfe den Club Secret in den Settings.</p>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseQrDialog">Schließen</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string ClubSecret { get; set; } = "";
+
+    private List<AccessPassEntry> _passes = [];
+    private bool _showEditDialog;
+    private bool _isNew;
+    private AccessPassEntry _editEntry = new();
+
+    private bool _showQrDialog;
+    private AccessPassEntry? _qrEntry;
+    private string? _qrToken;
+    private string? _qrDataUri;
+    private int _qrValidHours = 720;
+
+    protected override void OnInitialized()
+    {
+        Refresh();
+    }
+
+    private void Refresh()
+    {
+        _passes = AccessPassService.GetAll()
+            .OrderByDescending(p => p.IsActive)
+            .ThenByDescending(p => p.CreatedAt)
+            .ToList();
+    }
+
+    private void OpenCreateDialog()
+    {
+        _isNew = true;
+        _editEntry = new AccessPassEntry
+        {
+            TotalUses = 10,
+            RemainingUses = 10,
+            ValidFrom = DateTime.UtcNow.ToString("o"),
+            ValidUntil = DateTime.UtcNow.AddMonths(3).ToString("o"),
+            CreatedAt = DateTime.UtcNow.ToString("o")
+        };
+        _showEditDialog = true;
+    }
+
+    private void OpenEditDialog(AccessPassEntry entry)
+    {
+        _isNew = false;
+        // Clone for editing
+        _editEntry = new AccessPassEntry
+        {
+            Id = entry.Id,
+            Name = entry.Name,
+            CardId = entry.CardId,
+            PhotoFileName = entry.PhotoFileName,
+            TotalUses = entry.TotalUses,
+            RemainingUses = entry.RemainingUses,
+            ValidFrom = entry.ValidFrom,
+            ValidUntil = entry.ValidUntil,
+            IsActive = entry.IsActive,
+            LastCheckIn = entry.LastCheckIn,
+            LastCheckOut = entry.LastCheckOut,
+            CreatedAt = entry.CreatedAt
+        };
+        _showEditDialog = true;
+    }
+
+    private void HandleSave(AccessPassEntry entry)
+    {
+        if (_isNew)
+            AccessPassService.Create(entry);
+        else
+            AccessPassService.Update(entry);
+        _showEditDialog = false;
+        Refresh();
+    }
+
+    private void CloseEditDialog()
+    {
+        _showEditDialog = false;
+    }
+
+    private void ShowQrCode(AccessPassEntry entry)
+    {
+        _qrEntry = entry;
+        var (token, dataUri) = QrService.GenerateTokenAndQr(entry, ClubSecret, _qrValidHours);
+        _qrToken = token;
+        _qrDataUri = dataUri;
+        _showQrDialog = true;
+    }
+
+    private void CloseQrDialog()
+    {
+        _showQrDialog = false;
+        _qrEntry = null;
+    }
+
+    private void DeactivatePass(AccessPassEntry entry)
+    {
+        AccessPassService.Deactivate(entry.Id);
+        Refresh();
+    }
+
+    private void DeletePass(AccessPassEntry entry)
+    {
+        AccessPassService.Delete(entry.Id);
+        Refresh();
+    }
+
+    private static string FormatDate(string? isoDate)
+    {
+        if (string.IsNullOrWhiteSpace(isoDate)) return "—";
+        return DateTime.TryParse(isoDate, null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt)
+            ? dt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+            : isoDate;
+    }
+}

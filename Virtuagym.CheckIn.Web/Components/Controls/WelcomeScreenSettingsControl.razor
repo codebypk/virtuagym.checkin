@@ -1,0 +1,123 @@
+@using Microsoft.Extensions.Options
+@using Virtuagym.CheckIn.Web.Models
+@using Virtuagym.CheckIn.Core.Services
+@inject IOptions<AppSettings> SettingsOptions
+
+<div class="control-panel">
+    <h4>Welcome Screen Settings</h4>
+
+    <div class="form-group">
+        <label>@L.T("Settings_Lbl_ShowClubLogo")</label>
+        <input type="checkbox" @bind="_settings.ShowClubLogo" />
+    </div>
+    <div class="form-group">
+        <label>@L.T("Settings_Lbl_ClubLogo")</label>
+        <input type="text" @bind="_settings.ClubLogoPath" class="form-input" />
+    </div>
+    <div class="form-group">
+        <label>Idle Timeout (ms):</label>
+        <input type="number" @bind="_settings.WelcomeIdleTimeoutMs" class="form-input" />
+    </div>
+    <div class="form-group">
+        <label>Background Rotation (ms):</label>
+        <input type="number" @bind="_settings.BackgroundRotationIntervalMs" class="form-input" />
+    </div>
+    <div class="form-group">
+        <label>QR Camera Preview:</label>
+        <input type="checkbox" @bind="_settings.ShowQrCameraPreviewOnWelcome" />
+    </div>
+
+    <h5>Idle Hint Texts</h5>
+    <div class="form-group">
+        <label>RFID:</label>
+        <input type="text" @bind="_settings.IdleHintRfid" class="form-input" />
+    </div>
+    <div class="form-group">
+        <label>QR Code:</label>
+        <input type="text" @bind="_settings.IdleHintQrCode" class="form-input" />
+    </div>
+    <div class="form-group">
+        <label>RFID + QR:</label>
+        <input type="text" @bind="_settings.IdleHintRfidAndQrCode" class="form-input" />
+    </div>
+
+    <h5>Check-in Texts</h5>
+    <div class="form-group">
+        <label>Success:</label>
+        <input type="text" @bind="_settings.CheckinSuccessText" class="form-input" />
+    </div>
+    <div class="form-group">
+        <label>Not Found:</label>
+        <input type="text" @bind="_settings.CheckinNotFoundText" class="form-input" />
+    </div>
+    <div class="form-group">
+        <label>Unknown Error:</label>
+        <input type="text" @bind="_settings.CheckinUnknownErrorText" class="form-input" />
+    </div>
+
+    <fieldset>
+        <legend>Sounds</legend>
+        <div class="form-group">
+            <label>@L.T("Settings_Lbl_SoundSuccess")</label>
+            <input type="text" @bind="_settings.SoundCheckinSuccess" class="form-input" />
+        </div>
+        <div class="form-group">
+            <label>@L.T("Settings_Lbl_SoundWarn")</label>
+            <input type="text" @bind="_settings.SoundCheckinWarn" class="form-input" />
+        </div>
+        <div class="form-group">
+            <label>@L.T("Settings_Lbl_SoundError")</label>
+            <input type="text" @bind="_settings.SoundCheckinError" class="form-input" />
+        </div>
+        <div class="form-group">
+            <label>@L.T("Settings_Lbl_SoundDoubleScan")</label>
+            <input type="text" @bind="_settings.SoundCheckinDoubleScan" class="form-input" />
+        </div>
+    </fieldset>
+
+    <fieldset>
+        <legend>@L.T("Settings_Grp_ApiMessages")</legend>
+        <p class="text-muted" style="margin-bottom:10px;">@L.T("Settings_Lbl_ApiMsgHeader")</p>
+        <div class="form-group">
+            <label>@L.T("Settings_Lbl_MsgMemberNotFound")</label>
+            <input type="text" @bind="_settings.ApiMsgMemberNotFoundByRfid" class="form-input" />
+        </div>
+        <div class="form-group">
+            <label>@L.T("Settings_Lbl_MsgDoubleScan")</label>
+            <input type="text" @bind="_settings.ApiMsgDoubleScanBlocked" class="form-input" />
+        </div>
+        <div class="form-group">
+            <label>@L.T("Settings_Lbl_MsgCheckinSuccess")</label>
+            <input type="text" @bind="_settings.ApiMsgCheckinSuccess" class="form-input" />
+        </div>
+        <div class="form-group">
+            <label>@L.T("Settings_Lbl_MsgCheckoutSuccess")</label>
+            <input type="text" @bind="_settings.ApiMsgCheckoutSuccess" class="form-input" />
+        </div>
+        <div class="form-group">
+            <label>@L.T("Settings_Lbl_MsgCheckinFailed")</label>
+            <input type="text" @bind="_settings.ApiMsgCheckinFailed" class="form-input" />
+        </div>
+        <div class="form-group">
+            <label>@L.T("Settings_Lbl_MsgCheckoutFailed")</label>
+            <input type="text" @bind="_settings.ApiMsgCheckoutFailed" class="form-input" />
+        </div>
+        <div class="form-group">
+            <label>@L.T("Settings_Lbl_MsgMemberNotActive")</label>
+            <input type="text" @bind="_settings.ApiMsgMemberNotActive" class="form-input" />
+        </div>
+        <div class="form-group">
+            <label>@L.T("Web_MemberTools_Lbl_InsufficientCredits")</label>
+            <input type="text" @bind="_settings.ApiMsgInsufficientCredits" class="form-input" />
+        </div>
+    </fieldset>
+</div>
+
+@code {
+    private AppSettings _settings = new();
+
+    protected override void OnInitialized()
+    {
+        _settings = SettingsOptions.Value;
+    }
+}
