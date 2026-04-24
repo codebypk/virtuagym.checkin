@@ -22,6 +22,12 @@
     <Page Remove="Compatibility\**" />
   </ItemGroup>
   <ItemGroup>
+    <None Remove="Main.ico" />
+    <Content Include="Main.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
     <Page Update="Controls\ApiConnectionControl.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -64,7 +70,7 @@
     <Page Update="EditWindows\EditMemberWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
-    <Page Update="EditWindows\EditAccessPassWindow.xaml">
+    <Page Update="EditWindows\WebcamCaptureWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Update="WelcomeWindow.xaml">
@@ -72,7 +78,7 @@
     </Page>
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="Main.ico" />
+    <Resource Include="Main.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Virtuagym.API\Virtuagym.API.csproj" />

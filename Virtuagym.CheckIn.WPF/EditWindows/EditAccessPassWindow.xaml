@@ -4,10 +4,13 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="Access Pass bearbeiten" Height="480" Width="500"
+        Title="Access Pass bearbeiten" Height="720" Width="500"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
     <Grid Margin="15">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -25,28 +28,62 @@
             <TextBox x:Name="txtName" Height="24"/>
         </StackPanel>
 
-        <!-- Card-ID -->
+        <!-- Foto -->
         <StackPanel Grid.Row="1" Margin="0,0,0,12">
+            <TextBlock Text="Foto:" Margin="0,0,0,4"/>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Width="80" Height="80" BorderBrush="#CCC" BorderThickness="1" Background="#F5F5F5" Margin="0,0,10,0">
+                    <Image x:Name="imgAvatar" Stretch="UniformToFill"/>
+                </Border>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <Button x:Name="btnUploadPhoto" Content="Datei wählen" Width="110" Height="24" Margin="0,0,0,4" Click="btnUploadPhoto_Click" HorizontalAlignment="Left"/>
+                    <Button x:Name="btnCapturePhoto" Content="Webcam" Width="110" Height="24" Margin="0,0,0,4" Click="btnCapturePhoto_Click" HorizontalAlignment="Left"/>
+                    <Button x:Name="btnRemovePhoto" Content="Entfernen" Width="110" Height="24" Click="btnRemovePhoto_Click" HorizontalAlignment="Left" Visibility="Collapsed"/>
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+
+        <!-- Card-ID -->
+        <StackPanel Grid.Row="2" Margin="0,0,0,12">
             <TextBlock Text="Card-ID:" Margin="0,0,0,4"/>
-            <TextBox x:Name="txtCardId" Height="24"/>
-            <TextBlock Text="Karten-ID oder Kennung für die Zuordnung beim Scannen"
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="txtCardId" Grid.Column="0" Height="24" IsReadOnly="True" Background="#F0F0F0"/>
+                <Button x:Name="btnGenerateCardId" Grid.Column="1" Content="Generieren" Width="80" Height="24" Margin="6,0,0,0" Click="btnGenerateCardId_Click"/>
+                <Button x:Name="btnReadCard" Grid.Column="2" Content="Karte lesen" Width="80" Height="24" Margin="6,0,0,0" Click="btnReadCard_Click"/>
+            </Grid>
+            <TextBlock x:Name="txtCardIdHint" Text="Karten-ID oder Kennung für die Zuordnung beim Scannen"
                        FontSize="10" Foreground="Gray" Margin="0,2,0,0"/>
         </StackPanel>
 
+        <!-- Unbegrenzt -->
+        <StackPanel Grid.Row="3" Margin="0,0,0,12">
+            <CheckBox x:Name="chkUnlimited" Content="Unbegrenzte Nutzung (kein Limit, kein Ablaufdatum)"
+                      VerticalAlignment="Center" Checked="chkUnlimited_Changed" Unchecked="chkUnlimited_Changed"/>
+        </StackPanel>
+
         <!-- Total Uses -->
-        <StackPanel Grid.Row="2" Margin="0,0,0,12">
+        <StackPanel x:Name="pnlTotalUses" Grid.Row="4" Margin="0,0,0,12">
             <TextBlock Text="Gesamtanzahl Nutzungen:" Margin="0,0,0,4"/>
             <TextBox x:Name="txtTotalUses" Height="24"/>
         </StackPanel>
 
         <!-- Remaining Uses -->
-        <StackPanel Grid.Row="3" Margin="0,0,0,12">
+        <StackPanel x:Name="pnlRemainingUses" Grid.Row="5" Margin="0,0,0,12">
             <TextBlock Text="Verbleibende Nutzungen:" Margin="0,0,0,4"/>
             <TextBox x:Name="txtRemainingUses" Height="24"/>
         </StackPanel>
 
         <!-- Valid From / Until -->
-        <Grid Grid.Row="4" Margin="0,0,0,12">
+        <Grid x:Name="pnlValidDates" Grid.Row="6" Margin="0,0,0,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="10"/>
@@ -63,17 +100,30 @@
         </Grid>
 
         <!-- IsActive -->
-        <StackPanel Grid.Row="5" Margin="0,0,0,12">
+        <StackPanel Grid.Row="7" Margin="0,0,0,12">
             <CheckBox x:Name="chkIsActive" Content="Pass ist aktiv" VerticalAlignment="Center"/>
         </StackPanel>
 
+        <!-- QR-Code -->
+        <StackPanel x:Name="pnlQrCode" Grid.Row="8" Margin="0,0,0,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Button x:Name="btnGenerateQr" Grid.Column="0" Content="QR-Code generieren" Height="28" Padding="12,0" Click="btnGenerateQr_Click"/>
+                <TextBlock x:Name="txtQrStatus" Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="10" Foreground="Gray"/>
+            </Grid>
+            <Image x:Name="imgQrCode" Width="180" Height="180" Margin="0,8,0,0" Visibility="Collapsed" HorizontalAlignment="Left"/>
+        </StackPanel>
+
         <!-- Validation Message -->
-        <TextBlock x:Name="txtValidationMessage" Grid.Row="7" 
+        <TextBlock x:Name="txtValidationMessage" Grid.Row="10"
                    Foreground="Red" TextWrapping="Wrap" 
                    Visibility="Collapsed" Margin="0,0,0,10"/>
 
         <!-- Buttons -->
-        <StackPanel Grid.Row="8" Orientation="Horizontal" HorizontalAlignment="Right">
+        <StackPanel Grid.Row="11" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button x:Name="btnSave" Content="Speichern" Width="100" Height="30" 
                     Margin="0,0,10,0" Click="btnSave_Click" IsDefault="True"/>
             <Button x:Name="btnCancel" Content="Abbrechen" Width="100" Height="30" 

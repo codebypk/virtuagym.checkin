@@ -465,6 +465,7 @@ namespace Virtuagym.CheckIn.WPF
         {
             var settingsWindow = new SettingsWindow();
             settingsWindow.Owner = this;
+            settingsWindow.SetCardReaders(m_ccidReaders, m_rfidReaderVirtuagym);
             settingsWindow.ShowDialog();
         }
 

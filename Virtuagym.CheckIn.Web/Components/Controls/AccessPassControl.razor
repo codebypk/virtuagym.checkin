@@ -69,7 +69,9 @@
 @* ── Edit / Create Dialog ── *@
 @if (_showEditDialog)
 {
-    <EditAccessPassDialog Entry="_editEntry" IsNew="_isNew"
+    <EditAccessPassDialog @ref="_editDialogRef" Entry="_editEntry" IsNew="_isNew"
+                          ClubSecret="@ClubSecret"
+                          ExistingAvatarUrl="@_editAvatarUrl"
                           OnSave="HandleSave" OnCancel="CloseEditDialog" />
 }
 
@@ -112,6 +114,8 @@
     private bool _showEditDialog;
     private bool _isNew;
     private AccessPassEntry _editEntry = new();
+    private EditAccessPassDialog? _editDialogRef;
+    private string? _editAvatarUrl;
 
     private bool _showQrDialog;
     private AccessPassEntry? _qrEntry;
@@ -143,6 +147,7 @@
             ValidUntil = DateTime.UtcNow.AddMonths(3).ToString("o"),
             CreatedAt = DateTime.UtcNow.ToString("o")
         };
+        _editAvatarUrl = null;
         _showEditDialog = true;
     }
 
@@ -161,10 +166,14 @@
             ValidFrom = entry.ValidFrom,
             ValidUntil = entry.ValidUntil,
             IsActive = entry.IsActive,
+            IsUnlimited = entry.IsUnlimited,
             LastCheckIn = entry.LastCheckIn,
             LastCheckOut = entry.LastCheckOut,
-            CreatedAt = entry.CreatedAt
+            CreatedAt = entry.CreatedAt,
+            ModifiedAt = entry.ModifiedAt
         };
+        var avatarPath = AccessPassService.GetAvatarPath(entry.Id);
+        _editAvatarUrl = avatarPath != null ? $"data:image/jpeg;base64,{Convert.ToBase64String(System.IO.File.ReadAllBytes(avatarPath))}" : null;
         _showEditDialog = true;
     }
 
@@ -173,8 +182,18 @@
         if (_isNew)
             AccessPassService.Create(entry);
         else
+        {
+            if (_editDialogRef?.PhotoRemoved == true)
+                entry.PhotoFileName = null;
             AccessPassService.Update(entry);
+        }
+
+        if (_editDialogRef?.PhotoBytes is { Length: > 0 } photoBytes)
+            AccessPassService.SaveAvatar(entry.Id, photoBytes);
+
         _showEditDialog = false;
+        _editDialogRef = null;
+        _editAvatarUrl = null;
         Refresh();
     }
 

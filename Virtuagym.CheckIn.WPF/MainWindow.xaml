@@ -7,7 +7,8 @@
         xmlns:converters="clr-namespace:Virtuagym.CheckIn.WPF.Converters"
         mc:Ignorable="d"
         Title="Virtuagym RFID Reader" Height="490" Width="803" ResizeMode="CanMinimize"
-        Closing="OnClose" StateChanged="OnStateChanged" IsVisibleChanged="OnIsVisibleChanged" Loaded="Window_Loaded">
+        Closing="OnClose" StateChanged="OnStateChanged" IsVisibleChanged="OnIsVisibleChanged" Loaded="Window_Loaded"
+        Icon="Main.ico">
 
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="32" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
@@ -68,7 +69,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- Icon -->
-            <Image Grid.Column="0" Source="Main.ico" Width="20" Height="20" Margin="8,0,0,0" VerticalAlignment="Center"/>
+            <Image Grid.Column="0" Source="{Binding Icon, RelativeSource={RelativeSource AncestorType=Window}}" Width="20" Height="20" Margin="8,0,0,0" VerticalAlignment="Center"/>
 
             <!-- Title -->
             <TextBlock Grid.Column="1" Text="Virtuagym Member Check-In" VerticalAlignment="Center" Margin="8,0,0,0" 

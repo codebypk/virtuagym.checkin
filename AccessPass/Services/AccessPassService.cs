@@ -82,6 +82,7 @@ public class AccessPassService : IAccessPassService
     {
         var existing = _store.GetById(entry.Id);
         if (existing == null) return false;
+        entry.ModifiedAt = DateTime.UtcNow.ToString("o");
         _store.Upsert(entry);
         return true;
     }
@@ -92,6 +93,7 @@ public class AccessPassService : IAccessPassService
         var entry = _store.GetById(passId);
         if (entry == null) return false;
         entry.IsActive = false;
+        entry.ModifiedAt = DateTime.UtcNow.ToString("o");
         _store.Upsert(entry);
         return true;
     }
@@ -141,13 +143,14 @@ public class AccessPassService : IAccessPassService
         }
 
         // Check-in (consumes one use)
-        if (entry.RemainingUses <= 0)
+        if (!entry.IsUnlimited && entry.RemainingUses <= 0)
             return Fail(AccessPassError.NoRemainingUses, "No remaining uses on this pass.", entry);
 
         if (!entry.IsValid)
             return Fail(AccessPassError.Expired, "Access pass has expired.", entry);
 
-        entry.RemainingUses--;
+        if (!entry.IsUnlimited)
+            entry.RemainingUses--;
         entry.LastCheckIn = DateTime.UtcNow.ToString("o");
         _store.Upsert(entry);
 

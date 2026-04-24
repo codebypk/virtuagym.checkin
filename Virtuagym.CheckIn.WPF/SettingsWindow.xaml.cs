@@ -11,6 +11,7 @@ using System.Windows.Media;
 using System.Xml;
 using Virtuagym.CheckIn.Core.Models;
 using Virtuagym.CheckIn.WPF.Controls;
+using Hardware.Services;
 using Virtuagym.CheckIn.Core.Models;
 using Virtuagym.CheckIn.Core.Helper;
 using Virtuagym.CheckIn.Core.Models;
@@ -28,6 +29,11 @@ namespace Virtuagym.CheckIn.WPF
     public partial class SettingsWindow : Window
     {
         private bool _suppressLangChange = false;
+
+        public void SetCardReaders(List<CcidSmartCardReader> ccidReaders, List<HidCardReader> hidReaders)
+        {
+            accessPassControl.SetCardReaders(ccidReaders, hidReaders);
+        }
 
         public SettingsWindow()
         {

@@ -65,6 +65,7 @@ public class CheckinHandler
         _creditService = new CheckinCreditService(logger, settings, apiFactory, memberCache);
     }
 
+
     private static CachedMemberInfo? ToCachedMemberInfo(MemberCacheEntry? entry)
     {
         if (entry == null) return null;
@@ -92,62 +93,28 @@ public class CheckinHandler
         string displayName = ResolveDisplayName(sourceName);
 
         // 1) Try access pass (offline, local)
-        if (_accessPassService != null)
-        {
-            var accessResult = _accessPassService.TryResolve(encryptedQrCode, _settings.VirtuagymClubSecret.Trim());
-            if (accessResult != null)
-            {
-                HandleAccessPassResult(accessResult, displayName, cancellationToken);
-                return;
-            }
-        }
+        if (TryHandleAccessPass(encryptedQrCode, displayName, cancellationToken))
+            return;
 
         // 2) Virtuagym native QR
         if (VirtuagymNativeQr.IsMatch(encryptedQrCode))
         {
             if (!VirtuagymNativeQr.TryExtractCardId(encryptedQrCode, out string vgCardId))
             {
-                _logger.WriteToLog($"[{displayName}] {L.T("Log_VgQrEmpty")}", Constants.LogWarning);
-                _soundPlayer.Play(_settings.SoundCheckinError);
-                _welcomeDisplay?.ShowCheckinResult(Constants.StatusReject, "", null,
-                    new[] { L.T("QR_InvalidOrManipulated") }, displayName);
+                ShowReject(displayName, "", null, [L.T("QR_InvalidOrManipulated")],
+                    $"[{displayName}] {L.T("Log_VgQrEmpty")}");
                 return;
             }
 
-            _logger.WriteToLog($"[{displayName}] {L.T("Log_VgQrDetected")}: {vgCardId.Substring(0, Math.Min(vgCardId.Length, 20))}...");
+            _logger.WriteToLog($"[{displayName}] {L.T("Log_VgQrDetected")}: {vgCardId[..Math.Min(vgCardId.Length, 20)]}...");
             await PerformCheckinAsync(Card.FromRawValue(encryptedQrCode), sourceName, null, cancellationToken);
             return;
         }
 
         // 3) Unknown QR format
-        _logger.WriteToLog($"[{displayName}] {L.T("Log_QrNotEncrypted")}", Constants.LogError);
-        _soundPlayer.Play(_settings.SoundCheckinError);
-        _welcomeDisplay?.ShowCheckinResult(Constants.StatusReject, "", null,
-            new[] { L.T("QR_InvalidOrManipulated") }, displayName);
+        ShowReject(displayName, "", null, [L.T("QR_InvalidOrManipulated")],
+            $"[{displayName}] {L.T("Log_QrNotEncrypted")}", Constants.LogError);
     }
-
-    private void HandleAccessPassResult(AccessPassResult result, string displayName, CancellationToken cancellationToken)
-    {
-        if (result.Success)
-        {
-            string actionText = result.Action == "checkout" ? L.T("Log_ActionCheckout") : L.T("Log_ActionCheckin");
-            _logger.WriteToLog($"[{displayName}] AccessPass {actionText}: {result.DisplayName} ({result.RemainingUses}/{result.TotalUses})", Constants.LogSuccess);
-            _soundPlayer.Play(_settings.SoundCheckinSuccess);
-            _welcomeDisplay?.ShowCheckinResult(Constants.StatusOk, result.DisplayName ?? "", result.AvatarPath,
-                result.Messages, displayName);
-            _hardwareTrigger.TriggerRelayIfEnabled(displayName);
-            _hardwareTrigger.TriggerPgGateIfEnabled(displayName, cancellationToken);
-        }
-        else
-        {
-            _logger.WriteToLog($"[{displayName}] AccessPass rejected: {result.Error} – {string.Join(" | ", result.Messages)}", Constants.LogWarning);
-            _soundPlayer.Play(_settings.SoundCheckinError);
-            _welcomeDisplay?.ShowCheckinResult(Constants.StatusReject, result.DisplayName ?? "", result.AvatarPath,
-                result.Messages, displayName);
-        }
-    }
-
-
 
     /// <summary>
     /// Performs a check-in/check-out via RFID tag.
@@ -155,6 +122,11 @@ public class CheckinHandler
     public async Task PerformCheckinAsync(Card rfidTag, string? sourceName = null, CachedMemberInfo? precachedMember = null, CancellationToken cancellationToken = default)
     {
         string displayName = ResolveDisplayName(sourceName);
+
+        // Try access pass lookup by RFID card ID before API call
+        if (TryHandleAccessPass(rfidTag.GetCardId(_mapping.CardIdModeEnum), displayName, cancellationToken))
+            return;
+
         CachedMemberInfo? cachedMember = ResolveCachedMember(rfidTag, precachedMember, displayName);
 
         try
@@ -193,16 +165,56 @@ public class CheckinHandler
         }
         catch (VirtuagymApiException apiEx)
         {
-            _logger.WriteToLog($"{L.T("Log_ApiError")} '{rfidTag}': {apiEx.ApiStatusMessage} (Code: {apiEx.ApiStatusCode})", Constants.LogError);
             _logger.WriteToRejectedLog(rfidTag.GetCardId(_mapping.CardIdModeEnum), $"api_error_{apiEx.ApiStatusCode}", apiEx.ApiStatusMessage);
-            _soundPlayer.Play(_settings.SoundCheckinError);
-            _welcomeDisplay?.ShowCheckinResult(Constants.StatusReject, "", null, new[] { $"{L.T("Log_Error")}: {apiEx.ApiStatusMessage}" }, displayName);
+            ShowReject(displayName, "", null, [$"{L.T("Log_Error")}: {apiEx.ApiStatusMessage}"],
+                $"{L.T("Log_ApiError")} '{rfidTag}': {apiEx.ApiStatusMessage} (Code: {apiEx.ApiStatusCode})", Constants.LogError);
         }
         catch (Exception ex)
         {
             _logger.WriteToLog($"{L.T("Log_ApiError")} '{rfidTag}': {ex.Message}", Constants.LogError);
             HandleOfflineFallback(ex, rfidTag, cachedMember, displayName, cancellationToken);
         }
+    }
+
+    private void HandleAccessPassResult(AccessPassResult result, string displayName, CancellationToken cancellationToken)
+    {
+        if (result.Success)
+        {
+            string actionText = result.Action == "checkout" ? L.T("Log_ActionCheckout") : L.T("Log_ActionCheckin");
+            ShowSuccessWithHardwareTrigger(displayName, result.DisplayName ?? "", result.AvatarPath, result.Messages,
+                $"[{displayName}] AccessPass {actionText}: {result.DisplayName} ({result.RemainingUses}/{result.TotalUses})", cancellationToken);
+        }
+        else
+        {
+            ShowReject(displayName, result.DisplayName ?? "", result.AvatarPath, result.Messages,
+                $"[{displayName}] AccessPass rejected: {result.Error} – {string.Join(" | ", result.Messages)}");
+        }
+    }
+
+    private bool TryHandleAccessPass(string identifier, string displayName, CancellationToken cancellationToken)
+    {
+        if (_accessPassService == null) return false;
+        var result = _accessPassService.TryResolve(identifier, _settings.VirtuagymClubSecret?.Trim() ?? "");
+        if (result == null) return false;
+        HandleAccessPassResult(result, displayName, cancellationToken);
+        return true;
+    }
+
+    private void ShowReject(string displayName, string memberName, string? avatar, string[] messages, string? logMessage = null, int logLevel = Constants.LogWarning)
+    {
+        if (logMessage != null)
+            _logger.WriteToLog(logMessage, logLevel);
+        _soundPlayer.Play(_settings.SoundCheckinError);
+        _welcomeDisplay?.ShowCheckinResult(Constants.StatusReject, memberName, avatar, messages, displayName);
+    }
+
+    private void ShowSuccessWithHardwareTrigger(string displayName, string memberName, string? avatar, string[] messages, string logMessage, CancellationToken cancellationToken)
+    {
+        _logger.WriteToLog(logMessage, Constants.LogSuccess);
+        _soundPlayer.Play(_settings.SoundCheckinSuccess);
+        _welcomeDisplay?.ShowCheckinResult(Constants.StatusOk, memberName, avatar, messages, displayName);
+        _hardwareTrigger.TriggerRelayIfEnabled(displayName);
+        _hardwareTrigger.TriggerPgGateIfEnabled(displayName, cancellationToken);
     }
 
     #region Checkin Helper Methods
@@ -247,10 +259,8 @@ public class CheckinHandler
         string notActiveMsg = string.Format(
             ApiMessageOverrides.Resolve(_settings.ApiMsgMemberNotActive, ApiConstants.MsgMemberNotActive),
             memberName);
-        _logger.WriteToLog($"[{displayName}] {L.T("Log_MemberNotActive")}: {cachedMember.MemberId} ({memberName})", Constants.LogWarning);
-        _soundPlayer.Play(_settings.SoundCheckinError);
-        _welcomeDisplay?.ShowCheckinResult(Constants.StatusReject, memberName,
-            cachedMember.Avatar, new[] { notActiveMsg }, displayName);
+        ShowReject(displayName, memberName, cachedMember.Avatar, [notActiveMsg],
+            $"[{displayName}] {L.T("Log_MemberNotActive")}: {cachedMember.MemberId} ({memberName})");
         return true;
     }
 
@@ -275,17 +285,14 @@ public class CheckinHandler
         var messages = balanceMsg != null
             ? new[] { creditMsg, balanceMsg }
             : new[] { creditMsg };
-        _logger.WriteToLog($"[{displayName}] {L.T("Log_InsufficientCredits")}: {cachedMember.MemberId} ({serviceId}, {creditAmount}/{minCreditsRequired})", Constants.LogWarning);
-        _soundPlayer.Play(_settings.SoundCheckinError);
-        _welcomeDisplay?.ShowCheckinResult(Constants.StatusReject,
-            GetMemberFullName(cachedMember),
-            cachedMember.Avatar, messages, displayName);
+        ShowReject(displayName, GetMemberFullName(cachedMember), cachedMember.Avatar, messages,
+            $"[{displayName}] {L.T("Log_InsufficientCredits")}: {cachedMember.MemberId} ({serviceId}, {creditAmount}/{minCreditsRequired})");
         return true;
     }
 
-    private ApiMessageOverrides CreateMessageOverrides()
+    private async Task<CheckinToggleResult> ExecuteCheckinToggleAsync(Card rfidTag, CachedMemberInfo? cachedMember)
     {
-        return new ApiMessageOverrides
+        var msgOverrides = new ApiMessageOverrides
         {
             MsgMemberNotFoundByRfid = _settings.ApiMsgMemberNotFoundByRfid,
             MsgDoubleScanBlocked = _settings.ApiMsgDoubleScanBlocked,
@@ -296,11 +303,6 @@ public class CheckinHandler
             MsgInsufficientCredits = _settings.ApiMsgInsufficientCredits,
             MsgMemberNotActive = _settings.ApiMsgMemberNotActive
         };
-    }
-
-    private async Task<CheckinToggleResult> ExecuteCheckinToggleAsync(Card rfidTag, CachedMemberInfo? cachedMember)
-    {
-        var msgOverrides = CreateMessageOverrides();
         string deviceId = _mapping.EffectiveDeviceId;
 
         bool useV0 = _mapping.ApiVersion == 0 || rfidTag.IsRawValue;
@@ -324,7 +326,48 @@ public class CheckinHandler
 
         string deviceId = _mapping.EffectiveDeviceId;
 
-        cachedMember = BackfillCacheOnMiss(result, rfidTag, cachedMember, displayName);
+        // Backfill cache on miss
+        if (cachedMember == null && _memberCache.GetByMemberId(result.MemberId) == null)
+        {
+            string firstName = result.MemberName ?? "";
+            string lastName = "";
+            if (!string.IsNullOrEmpty(result.MemberName))
+            {
+                int spaceIdx = result.MemberName.IndexOf(' ');
+                if (spaceIdx > 0)
+                {
+                    firstName = result.MemberName[..spaceIdx];
+                    lastName = result.MemberName[(spaceIdx + 1)..].Trim();
+                }
+            }
+
+            cachedMember = new CachedMemberInfo
+            {
+                MemberId = result.MemberId,
+                UserId = result.UserId,
+                RfidTag = rfidTag.GetCardId(_mapping.CardIdModeEnum),
+                Firstname = firstName,
+                Lastname = lastName,
+                Avatar = result.MemberAvatar,
+                Active = true,
+                TimestampEdit = result.UserTimestampEdit
+            };
+
+            _memberCache.Upsert(new MemberCacheEntry
+            {
+                UserId = result.UserId,
+                MemberId = result.MemberId,
+                RfidTag = rfidTag.GetCardId(_mapping.CardIdModeEnum),
+                Active = true,
+                Firstname = firstName,
+                Lastname = lastName,
+                AvatarUrl = result.MemberAvatar,
+                TimestampEdit = result.UserTimestampEdit
+            });
+
+            _logger.WriteToLog($"[{displayName}] {string.Format(L.T("Log_CacheMissBackfilled"), result.MemberName, result.MemberId)}");
+        }
+
         await RefreshAvatarIfNeededAsync(cachedMember, displayName);
 
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -333,51 +376,6 @@ public class CheckinHandler
         else if (result.Action == ApiConstants.ActionCheckout)
             _memberCache.UpdateVisitTimestamps(result.MemberId, 0, now, deviceId, result.VisitId, _mapping.ApiVersion);
 
-        return cachedMember;
-    }
-
-    private CachedMemberInfo? BackfillCacheOnMiss(CheckinToggleResult result, Card rfidTag, CachedMemberInfo? cachedMember, string displayName)
-    {
-        if (cachedMember != null || _memberCache!.GetByMemberId(result.MemberId) != null)
-            return cachedMember;
-
-        string firstName = result.MemberName ?? "";
-        string lastName = "";
-        if (!string.IsNullOrEmpty(result.MemberName))
-        {
-            int spaceIdx = result.MemberName.IndexOf(' ');
-            if (spaceIdx > 0)
-            {
-                firstName = result.MemberName.Substring(0, spaceIdx);
-                lastName = result.MemberName.Substring(spaceIdx + 1).Trim();
-            }
-        }
-
-        cachedMember = new CachedMemberInfo
-        {
-            MemberId = result.MemberId,
-            UserId = result.UserId,
-            RfidTag = rfidTag.GetCardId(_mapping.CardIdModeEnum),
-            Firstname = firstName,
-            Lastname = lastName,
-            Avatar = result.MemberAvatar,
-            Active = true,
-            TimestampEdit = result.UserTimestampEdit
-        };
-
-        _memberCache.Upsert(new MemberCacheEntry
-        {
-            UserId = result.UserId,
-            MemberId = result.MemberId,
-            RfidTag = rfidTag.GetCardId(_mapping.CardIdModeEnum),
-            Active = true,
-            Firstname = firstName,
-            Lastname = lastName,
-            AvatarUrl = result.MemberAvatar,
-            TimestampEdit = result.UserTimestampEdit
-        });
-
-        _logger.WriteToLog($"[{displayName}] {string.Format(L.T("Log_CacheMissBackfilled"), result.MemberName, result.MemberId)}");
         return cachedMember;
     }
 
@@ -479,11 +477,9 @@ public class CheckinHandler
         }
         else
         {
-            _logger.WriteToLog($"[{displayName}] {L.T("Log_CheckinToggleFailed")}: {reason} (Status: {result.Status})", Constants.LogWarning);
             _logger.WriteToRejectedLog(rfidTag.GetCardId(_mapping.CardIdModeEnum), result.Status ?? "rejected", reason);
-            _soundPlayer.Play(_settings.SoundCheckinError);
-            _welcomeDisplay?.ShowCheckinResult(result.Status ?? Constants.StatusReject, result.MemberName ?? "", result.MemberAvatar,
-                messages, displayName);
+            ShowReject(displayName, result.MemberName ?? "", result.MemberAvatar, messages,
+                $"[{displayName}] {L.T("Log_CheckinToggleFailed")}: {reason} (Status: {result.Status})");
         }
     }
 
@@ -491,10 +487,9 @@ public class CheckinHandler
     {
         if (_memberCache == null || cachedMember == null || cachedMember.MemberId == 0)
         {
-            _logger.WriteToLog($"{L.T("Log_ApiError")} '{rfidTag.GetCardId(_mapping.CardIdModeEnum)}': {ex.Message}", Constants.LogError);
             _logger.WriteToRejectedLog(rfidTag.GetCardId(_mapping.CardIdModeEnum), "exception", ex.Message);
-            _soundPlayer.Play(_settings.SoundCheckinError);
-            _welcomeDisplay?.ShowCheckinResult(Constants.StatusReject, "", null, new[] { L.T("Checkin_ConnectionError") }, displayName);
+            ShowReject(displayName, "", null, [L.T("Checkin_ConnectionError")],
+                $"{L.T("Log_ApiError")} '{rfidTag.GetCardId(_mapping.CardIdModeEnum)}': {ex.Message}", Constants.LogError);
             return;
         }
 
@@ -526,20 +521,15 @@ public class CheckinHandler
 
         int pendingCount = _memberCache.GetPendingCheckinCount();
         string actionText = isCheckout ? L.T("Log_ActionCheckout") : L.T("Log_ActionCheckin");
-        _logger.WriteToLog($"[{displayName}] {L.T("Log_OfflineCheckin")} ({actionText}): {memberName} ({pendingCount} {L.T("Log_Pending")})", Constants.LogWarning);
-
-        _soundPlayer.Play(_settings.SoundCheckinSuccess);
 
         string? offlineAvatar = _memberCache.GetAvatarLocalPath(cachedMember.MemberId);
         string[] offlineMessages = [L.T("Checkin_OfflineSyncPending")];
         string? offlineCreditMsg = _creditService.BuildBalanceMessage(cachedMember, _mapping.CreditServiceId);
         if (offlineCreditMsg != null)
             offlineMessages = [.. offlineMessages, offlineCreditMsg];
-        _welcomeDisplay?.ShowCheckinResult(Constants.StatusOk, memberName, offlineAvatar,
-            offlineMessages, displayName);
 
-        _hardwareTrigger.TriggerRelayIfEnabled(displayName);
-        _hardwareTrigger.TriggerPgGateIfEnabled(displayName, cancellationToken);
+        ShowSuccessWithHardwareTrigger(displayName, memberName, offlineAvatar, offlineMessages,
+            $"[{displayName}] {L.T("Log_OfflineCheckin")} ({actionText}): {memberName} ({pendingCount} {L.T("Log_Pending")})", cancellationToken);
     }
 
     #endregion

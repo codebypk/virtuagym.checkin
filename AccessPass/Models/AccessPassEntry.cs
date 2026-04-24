@@ -35,6 +35,9 @@ public class AccessPassEntry
     /// <summary>Whether the pass is active (can be manually deactivated).</summary>
     public bool IsActive { get; set; } = true;
 
+    /// <summary>Whether the pass has unlimited uses and no expiration.</summary>
+    public bool IsUnlimited { get; set; }
+
     /// <summary>Timestamp of the last check-in (UTC, ISO 8601).</summary>
     public string? LastCheckIn { get; set; }
 
@@ -43,6 +46,9 @@ public class AccessPassEntry
 
     /// <summary>Timestamp when the pass was created (UTC, ISO 8601).</summary>
     public string? CreatedAt { get; set; }
+
+    /// <summary>Timestamp when the pass was last modified (UTC, ISO 8601).</summary>
+    public string? ModifiedAt { get; set; }
 
     /// <summary>
     /// Returns true if the pass is currently valid (active, not expired, has remaining uses).
@@ -53,6 +59,7 @@ public class AccessPassEntry
         get
         {
             if (!IsActive) return false;
+            if (IsUnlimited) return true;
             if (RemainingUses <= 0) return false;
 
             var now = DateTime.UtcNow;

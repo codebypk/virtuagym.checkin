@@ -1,4 +1,5 @@
 using AccessPass.Services;
+using Hardware.Events;
 using Hardware.Services;
 using Microsoft.Extensions.Options;
 using OpenCvSharp;
@@ -28,6 +29,11 @@ public sealed class HardwareScannerService : IHostedService, IDisposable
     private readonly List<HidCardReader> _hidReaders = [];
     private readonly List<CcidSmartCardReader> _ccidReaders = [];
     private MemberCacheService? _memberCache;
+
+    /// <summary>
+    /// Fired when any card reader reads a card. Can be used by UI components to capture card IDs.
+    /// </summary>
+    public event Action<string>? OnCardScanned;
 
     public HardwareScannerService(
         IOptionsMonitor<AppSettings> optionsMonitor,
@@ -148,6 +154,7 @@ public sealed class HardwareScannerService : IHostedService, IDisposable
     private async void OnCardRead(Hardware.Events.CardReadEventArgs e, CheckinClientMapping mapping,
         WebWelcomeDisplay display, ServerSoundPlayer soundPlayer)
     {
+        OnCardScanned?.Invoke(e.Card.UidHex);
         try
         {
             display.ShowLoader();

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -8,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using AccessPass.Models;
 using AccessPass.Services;
+using Hardware.Services;
 using Virtuagym.CheckIn.WPF.Properties;
 
 namespace Virtuagym.CheckIn.WPF.Controls
@@ -18,6 +20,14 @@ namespace Virtuagym.CheckIn.WPF.Controls
         private readonly AccessPassStore _store = new();
         private readonly AccessPassService _service;
         private readonly AccessPassQrService _qrService = new();
+        private List<CcidSmartCardReader> _ccidReaders = [];
+        private List<HidCardReader> _hidReaders = [];
+
+        public void SetCardReaders(List<CcidSmartCardReader> ccidReaders, List<HidCardReader> hidReaders)
+        {
+            _ccidReaders = ccidReaders;
+            _hidReaders = hidReaders;
+        }
 
         public AccessPassControl()
         {
@@ -58,7 +68,7 @@ namespace Virtuagym.CheckIn.WPF.Controls
                 CreatedAt = DateTime.UtcNow.ToString("o")
             };
 
-            var dialog = new EditAccessPassWindow(newEntry, isNew: true)
+            var dialog = new EditAccessPassWindow(newEntry, isNew: true, _ccidReaders, _hidReaders, _store)
             {
                 Owner = Window.GetWindow(this)
             };
@@ -66,6 +76,8 @@ namespace Virtuagym.CheckIn.WPF.Controls
             if (dialog.ShowDialog() == true && dialog.ResultEntry != null)
             {
                 _service.Create(dialog.ResultEntry);
+                if (dialog.PhotoBytes != null)
+                    _service.SaveAvatar(dialog.ResultEntry.Id, dialog.PhotoBytes);
                 Refresh();
                 txtStatus.Text = $"Pass '{dialog.ResultEntry.DisplayName}' erstellt.";
                 txtStatus.Foreground = Brushes.Green;
@@ -94,18 +106,28 @@ namespace Virtuagym.CheckIn.WPF.Controls
                 ValidFrom = selected.ValidFrom,
                 ValidUntil = selected.ValidUntil,
                 IsActive = selected.IsActive,
+                IsUnlimited = selected.IsUnlimited,
                 LastCheckIn = selected.LastCheckIn,
                 LastCheckOut = selected.LastCheckOut,
-                CreatedAt = selected.CreatedAt
+                CreatedAt = selected.CreatedAt,
+                ModifiedAt = selected.ModifiedAt
             };
 
-            var dialog = new EditAccessPassWindow(clone, isNew: false)
+            var dialog = new EditAccessPassWindow(clone, isNew: false, _ccidReaders, _hidReaders, _store)
             {
                 Owner = Window.GetWindow(this)
             };
 
             if (dialog.ShowDialog() == true && dialog.ResultEntry != null)
             {
+                if (dialog.PhotoRemoved)
+                {
+                    dialog.ResultEntry.PhotoFileName = null;
+                }
+                else if (dialog.PhotoBytes != null)
+                {
+                    _service.SaveAvatar(dialog.ResultEntry.Id, dialog.PhotoBytes);
+                }
                 _service.Update(dialog.ResultEntry);
                 Refresh();
                 txtStatus.Text = $"Pass '{dialog.ResultEntry.DisplayName}' aktualisiert.";
