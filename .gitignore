@@ -18,3 +18,4 @@
 **/Properties/Settings.Designer.cs
 PROD.CheckIn.config
 Virtuagym.CheckIn.Web/wwwroot/images/backgrounds/background.png
+.vscode

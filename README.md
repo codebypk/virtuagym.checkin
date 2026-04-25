@@ -5,9 +5,9 @@ Desktop and web application for member check-in using **RFID**, **CCID smart car
 The application connects local input devices with the **Virtuagym API** and optionally with **Jablotron** components to support check-ins, check-outs, door/relay control, and a welcome screen for reception or kiosk scenarios.
 It also includes a standalone **AccessPass** module for temporary offline access passes that work independently of Virtuagym.
 
-![Logging Window](/docs/screenshots/main.png "Logging Window"){:height="480px" width="640px"}
+![Logging Window](/Docs/screenshots/main.png "Logging Window"){:height="480px" width="640px"}
 
-![Settings Window](/docs/screenshots/settings.png "Settings Window"){:height="480px" width="640px"}
+![Settings Window](/Docs/screenshots/settings.png "Settings Window"){:height="480px" width="640px"}
 
 ## Features
 
