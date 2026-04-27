@@ -134,7 +134,7 @@ public class CheckinHandler
             cancellationToken.ThrowIfCancellationRequested();
 
             _logger.WriteToLog($"[{displayName}] {L.T("Log_ToggleCheckinStarted")} RFID '{rfidTag}' ...");
-            _welcomeDisplay?.ShowLoader();
+            _welcomeDisplay?.ShowLoader(displayName);
 
             if (RejectIfMemberInactive(cachedMember, displayName))
                 return;
@@ -178,16 +178,18 @@ public class CheckinHandler
 
     private void HandleAccessPassResult(AccessPassResult result, string displayName, CancellationToken cancellationToken)
     {
+        var localizedMessages = BuildLocalizedAccessPassMessages(result);
+
         if (result.Success)
         {
             string actionText = result.Action == "checkout" ? L.T("Log_ActionCheckout") : L.T("Log_ActionCheckin");
-            ShowSuccessWithHardwareTrigger(displayName, result.DisplayName ?? "", result.AvatarPath, result.Messages,
+            ShowSuccessWithHardwareTrigger(displayName, result.DisplayName ?? "", result.AvatarPath, localizedMessages,
                 $"[{displayName}] AccessPass {actionText}: {result.DisplayName} ({result.RemainingUses}/{result.TotalUses})", cancellationToken);
         }
         else
         {
-            ShowReject(displayName, result.DisplayName ?? "", result.AvatarPath, result.Messages,
-                $"[{displayName}] AccessPass rejected: {result.Error} – {string.Join(" | ", result.Messages)}");
+            ShowReject(displayName, result.DisplayName ?? "", result.AvatarPath, localizedMessages,
+                $"[{displayName}] AccessPass rejected: {result.Error} – {string.Join(" | ", localizedMessages)}");
         }
     }
 
@@ -215,6 +217,30 @@ public class CheckinHandler
         _welcomeDisplay?.ShowCheckinResult(Constants.StatusOk, memberName, avatar, messages, displayName);
         _hardwareTrigger.TriggerRelayIfEnabled(displayName);
         _hardwareTrigger.TriggerPgGateIfEnabled(displayName, cancellationToken);
+    }
+
+    private static string[] BuildLocalizedAccessPassMessages(AccessPassResult result)
+    {
+        string displayName = result.DisplayName ?? "";
+
+        if (result.Success)
+        {
+            return result.Action == "checkout"
+                ? [string.Format(L.T("AccessPass_CheckoutMessage"), displayName, result.RemainingUses, result.TotalUses)]
+                : [string.Format(L.T("AccessPass_CheckinMessage"), displayName, result.RemainingUses, result.TotalUses)];
+        }
+
+        return result.Error switch
+        {
+            AccessPassError.NotFound => [L.T("AccessPass_Error_NotFound")],
+            AccessPassError.Inactive => [L.T("AccessPass_Error_Inactive")],
+            AccessPassError.Expired => [L.T("AccessPass_Error_Expired")],
+            AccessPassError.NoRemainingUses => [L.T("AccessPass_Error_NoRemainingUses")],
+            AccessPassError.InvalidToken => [L.T("AccessPass_Error_InvalidToken")],
+            AccessPassError.AlreadyCheckedIn => [L.T("AccessPass_Error_AlreadyCheckedIn")],
+            AccessPassError.NotCheckedIn => [L.T("AccessPass_Error_NotCheckedIn")],
+            _ => result.Messages != null && result.Messages.Length > 0 ? result.Messages : [L.T("Msg_Error")]
+        };
     }
 
     #region Checkin Helper Methods

@@ -36,6 +36,7 @@
     "RepeatTimeInMs": 400,
     "DuplicateTimeoutSeconds": 5,
     "DefaultDoubleScanThresholdMs": 60000,
+    "DeviceHotplugPollIntervalSeconds": 15,
     "MemberCacheEnabled": true,
     "CacheSyncEnabled": true,
     "CacheSyncIntervalMinutes": 480,

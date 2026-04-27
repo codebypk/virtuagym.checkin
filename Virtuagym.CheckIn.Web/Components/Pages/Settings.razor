@@ -7,14 +7,14 @@
 @inject HardwareScannerService HardwareScannerService
 @inject BackgroundTaskService BackgroundTaskService
 
-<h3>Settings</h3>
+<h3>@Virtuagym.CheckIn.Core.Services.L.T("Settings_Title")</h3>
 
 <div class="settings-container">
     <!-- General settings bar (Language, Debug) -->
     <div style="display:flex; align-items:center; gap:24px; padding:12px 16px; border-bottom:1px solid var(--color-border);">
         <div class="form-group" style="margin-bottom:0;">
-            <label style="width:auto; margin-right:8px;">Sprache:</label>
-            <select @bind="_settings.AppLanguage" class="form-input" style="width:150px; flex:none;">
+            <label for="appLanguage" style="width:auto; margin-right:8px;">@Virtuagym.CheckIn.Core.Services.L.T("Settings_Lbl_Language")</label>
+            <select id="appLanguage" class="form-input" style="width:150px; flex:none;" value="@_settings.AppLanguage" @onchange="OnLanguageChanged">
                 <option value="de">Deutsch</option>
                 <option value="en">English</option>
             </select>
@@ -22,21 +22,21 @@
     </div>
 
     <div class="settings-tabs">
-        <button class="tab-btn @(ActiveTab == "virtuagym" ? "active" : "")" @onclick='() => ActiveTab = "virtuagym"'>Virtuagym Client</button>
-        <button class="tab-btn @(ActiveTab == "accesspass" ? "active" : "")" @onclick='() => ActiveTab = "accesspass"'>Access Pass</button>
-        <button class="tab-btn @(ActiveTab == "jablotron" ? "active" : "")" @onclick='() => ActiveTab = "jablotron"'>Jablotron Client</button>
-        <button class="tab-btn @(ActiveTab == "developer" ? "active" : "")" @onclick='() => ActiveTab = "developer"'>Developer</button>
+        <button class="tab-btn @(ActiveTab == "virtuagym" ? "active" : "")" @onclick='() => ActiveTab = "virtuagym"'>@Virtuagym.CheckIn.Core.Services.L.T("Settings_Tab_VirtuagymClient")</button>
+        <button class="tab-btn @(ActiveTab == "accesspass" ? "active" : "")" @onclick='() => ActiveTab = "accesspass"'>@Virtuagym.CheckIn.Core.Services.L.T("Settings_Tab_AccessPass")</button>
+        <button class="tab-btn @(ActiveTab == "jablotron" ? "active" : "")" @onclick='() => ActiveTab = "jablotron"'>@Virtuagym.CheckIn.Core.Services.L.T("Settings_Tab_JablotronClient")</button>
+        <button class="tab-btn @(ActiveTab == "developer" ? "active" : "")" @onclick='() => ActiveTab = "developer"'>@Virtuagym.CheckIn.Core.Services.L.T("Settings_Tab_Developer")</button>
     </div>
 
     <div class="tab-content">
         @if (ActiveTab == "virtuagym")
         {
             <div class="sub-tabs">
-                <button class="sub-tab-btn @(SubTab == "welcome" ? "active" : "")" @onclick='() => SubTab = "welcome"'>Welcome Screen</button>
-                <button class="sub-tab-btn @(SubTab == "api" ? "active" : "")" @onclick='() => SubTab = "api"'>API Connection</button>
-                <button class="sub-tab-btn @(SubTab == "mappings" ? "active" : "")" @onclick='() => SubTab = "mappings"'>Checkin-Client Mappings</button>
-                <button class="sub-tab-btn @(SubTab == "services" ? "active" : "")" @onclick='() => SubTab = "services"'>Club Services</button>
-                <button class="sub-tab-btn @(SubTab == "members" ? "active" : "")" @onclick='() => SubTab = "members"'>Member-Tools</button>
+                <button class="sub-tab-btn @(SubTab == "welcome" ? "active" : "")" @onclick='() => SubTab = "welcome"'>@Virtuagym.CheckIn.Core.Services.L.T("Settings_SubTab_WelcomeScreen")</button>
+                <button class="sub-tab-btn @(SubTab == "api" ? "active" : "")" @onclick='() => SubTab = "api"'>@Virtuagym.CheckIn.Core.Services.L.T("Settings_SubTab_ApiConnection")</button>
+                <button class="sub-tab-btn @(SubTab == "mappings" ? "active" : "")" @onclick='() => SubTab = "mappings"'>@Virtuagym.CheckIn.Core.Services.L.T("Settings_SubTab_CheckinMappings")</button>
+                <button class="sub-tab-btn @(SubTab == "services" ? "active" : "")" @onclick='() => SubTab = "services"'>@Virtuagym.CheckIn.Core.Services.L.T("Settings_SubTab_ClubServices")</button>
+                <button class="sub-tab-btn @(SubTab == "members" ? "active" : "")" @onclick='() => SubTab = "members"'>@Virtuagym.CheckIn.Core.Services.L.T("Settings_SubTab_MemberTools")</button>
             </div>
 
             @if (SubTab == "welcome")
@@ -62,6 +62,23 @@
         }
         else if (ActiveTab == "accesspass")
         {
+            <div style="padding:16px 0 24px 0; max-width:480px;">
+                <h5>@Virtuagym.CheckIn.Core.Services.L.T("Settings_AccessPass_AutoDeleteTitle")</h5>
+                <div class="form-group">
+                <label for="deletionMode">@Virtuagym.CheckIn.Core.Services.L.T("Settings_AccessPass_AutoDeleteQuestion")</label>
+                    <select id="deletionMode" class="form-input" style="width:220px;" @bind="_accessPassDeletionModeInt">
+                        <option value="0">@Virtuagym.CheckIn.Core.Services.L.T("Settings_AccessPass_DeleteImmediately")</option>
+                        <option value="1">@Virtuagym.CheckIn.Core.Services.L.T("Settings_AccessPass_DeleteAfterDays")</option>
+                    </select>
+                </div>
+                @if (_accessPassDeletionModeInt == 1)
+                {
+                    <div class="form-group">
+                        <label for="deletionDays">@Virtuagym.CheckIn.Core.Services.L.T("Settings_AccessPass_DaysUntilDelete")</label>
+                        <input id="deletionDays" type="number" min="1" max="365" class="form-input" style="width:100px;" @bind="_settings.AccessPassDeletionDays" />
+                    </div>
+                }
+            </div>
             <Virtuagym.CheckIn.Web.Components.Controls.AccessPassControl ClubSecret="@_settings.VirtuagymClubSecret" />
         }
         else if (ActiveTab == "jablotron")
@@ -72,14 +89,14 @@
         {
             <div style="padding:12px 0;">
                 <div class="form-group">
-                    <label>Debug Mode:</label>
+                    <label>@Virtuagym.CheckIn.Core.Services.L.T("Settings_Lbl_DebugMode")</label>
                     <input type="checkbox" @bind="_settings.DebugMode" />
                 </div>
                 </div>
 
             <div class="sub-tabs">
-                <button class="sub-tab-btn @(DevSubTab == "gatetest" ? "active" : "")" @onclick='() => DevSubTab = "gatetest"'>Gate Test</button>
-                <button class="sub-tab-btn @(DevSubTab == "simulation" ? "active" : "")" @onclick='() => DevSubTab = "simulation"'>Simulation</button>
+                <button class="sub-tab-btn @(DevSubTab == "gatetest" ? "active" : "")" @onclick='() => DevSubTab = "gatetest"'>@Virtuagym.CheckIn.Core.Services.L.T("Settings_SubTab_DeveloperJablotronGateTest")</button>
+                <button class="sub-tab-btn @(DevSubTab == "simulation" ? "active" : "")" @onclick='() => DevSubTab = "simulation"'>@Virtuagym.CheckIn.Core.Services.L.T("Settings_SubTab_DeveloperSimulation")</button>
             </div>
 
             @if (DevSubTab == "gatetest")
@@ -99,13 +116,18 @@
         {
             <span class="@_saveMessageCss">@_saveMessage</span>
         }
-        <button class="btn" @onclick="SaveSettings">Speichern</button>
-        <button class="btn btn-secondary" @onclick="CancelSettings">Abbrechen</button>
+        <button class="btn" @onclick="SaveSettings">@Virtuagym.CheckIn.Core.Services.L.T("Btn_Save")</button>
+        <button class="btn btn-secondary" @onclick="CancelSettings">@Virtuagym.CheckIn.Core.Services.L.T("Btn_Cancel")</button>
     </div>
 </div>
 
 @code {
     private AppSettings _settings = new();
+    private int _accessPassDeletionModeInt
+    {
+        get => (int)_settings.AccessPassDeletionMode;
+        set => _settings.AccessPassDeletionMode = (AccessPass.Models.AccessPassDeletionMode)value;
+    }
     private string ActiveTab { get; set; } = "virtuagym";
     private string SubTab { get; set; } = "welcome";
     private string DevSubTab { get; set; } = "gatetest";
@@ -125,12 +147,12 @@
             SettingsService.Save(_settings);
             HardwareScannerService.Reload();
             BackgroundTaskService.Reload();
-            _saveMessage = "Einstellungen gespeichert. Hardware-Scanner und Hintergrund-Dienste neu geladen.";
+            _saveMessage = Virtuagym.CheckIn.Core.Services.L.T("Settings_Msg_SavedReloaded");
             _saveMessageCss = "text-success";
         }
         catch (Exception ex)
         {
-            _saveMessage = $"Fehler beim Speichern: {ex.Message}";
+            _saveMessage = string.Format(Virtuagym.CheckIn.Core.Services.L.T("Settings_Msg_SaveError"), ex.Message);
             _saveMessageCss = "text-error";
         }
     }
@@ -139,6 +161,17 @@
     {
         Navigation.NavigateTo("/");
     }
+
+private void OnLanguageChanged(ChangeEventArgs e)
+{
+    if (e.Value is string newLanguage)
+    {
+        _settings.AppLanguage = newLanguage;
+        Virtuagym.CheckIn.Core.Services.L.Initialize(newLanguage);
+        StateHasChanged();
+        SaveSettings();
+    }
+}
 
     [Inject] private NavigationManager Navigation { get; set; } = default!;
 }

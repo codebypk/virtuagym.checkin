@@ -43,4 +43,8 @@ public class WpfAppSettings : IAppSettings
     public string ApiMsgDoubleScanBlocked => Settings.Default.ApiMsgDoubleScanBlocked;
     public string ApiMsgInsufficientCredits => Settings.Default.ApiMsgInsufficientCredits;
     public string ApiMsgMemberNotActive => Settings.Default.ApiMsgMemberNotActive;
+
+    // --- Access Pass Deletion ---
+    public AccessPass.Models.AccessPassDeletionMode AccessPassDeletionMode => (AccessPass.Models.AccessPassDeletionMode)Settings.Default.AccessPassDeletionMode;
+    public int AccessPassDeletionDays => Settings.Default.AccessPassDeletionDays;
 }

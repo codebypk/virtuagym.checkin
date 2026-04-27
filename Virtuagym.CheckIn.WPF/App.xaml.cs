@@ -33,7 +33,7 @@ namespace Virtuagym.CheckIn.WPF
             }
             catch
             {
-                // Unbekannte Sprache ΓåÆ System-Default beibehalten
+                // Unbekannte Sprache System-Default beibehalten
             }
 
             _mutex = new Mutex(true, Constants.MutexName, out bool isNewInstance);

@@ -200,10 +200,10 @@
                             <option value="720">@L.T("Web_EditMapping_AC_12h")</option>
                         </select>
 
-                        <label>Leser-Entprellung (Sek):</label>
+                        <label>@L.T("Web_EditMapping_Lbl_DuplicateTimeout")</label>
                         <input type="number" class="form-input" style="width:100px;" @bind="_duplicateTimeoutSeconds"
                                placeholder="@(SettingsOptions.Value.DuplicateTimeoutSeconds)"
-                               title="Zeitspanne in Sekunden, in der identische Scans vom Lesegerät ignoriert werden. Leer = globaler Standard (@(SettingsOptions.Value.DuplicateTimeoutSeconds)s)." />
+                               title="@string.Format(L.T("Web_EditMapping_Tip_DuplicateTimeout"), SettingsOptions.Value.DuplicateTimeoutSeconds)" />
 
                         @if (Mapping.InputType != CheckinClientMapping.InputTypeQrCode)
                         {
@@ -587,7 +587,7 @@
     private async Task TestPgGate()
     {
         var gate = _pgGates.FirstOrDefault(g => g.CloudComponentId == _selectedPgGateComponentId);
-        if (gate == null) { _pgStatus = L.T("Web_EditMapping_SelectGate"); return; }
+        if (gate == null) { _pgStatus = L.T("Common_SelectGate"); return; }
         if (!gate.CanControl) { _pgStatus = L.T("Web_EditMapping_GateNotControllable"); return; }
 
         _pgStatus = string.Format(L.T("Web_EditMapping_GateSwitchingOn"), gate.Name);

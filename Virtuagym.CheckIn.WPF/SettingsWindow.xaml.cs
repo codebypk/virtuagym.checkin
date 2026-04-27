@@ -1,25 +1,16 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Xml;
-using Virtuagym.CheckIn.Core.Models;
-using Virtuagym.CheckIn.WPF.Controls;
 using Hardware.Services;
-using Virtuagym.CheckIn.Core.Models;
 using Virtuagym.CheckIn.Core.Helper;
-using Virtuagym.CheckIn.Core.Models;
 using Virtuagym.CheckIn.Core.Services;
-using Virtuagym.CheckIn.Core.Models;
 using Virtuagym.CheckIn.Core.Abstractions;
-using Virtuagym.CheckIn.Core.Models;
 using Virtuagym.CheckIn.WPF.Properties;
+using AccessPass.Services;
 
 namespace Virtuagym.CheckIn.WPF
 {
@@ -35,10 +26,15 @@ namespace Virtuagym.CheckIn.WPF
             accessPassControl.SetCardReaders(ccidReaders, hidReaders);
         }
 
-        public SettingsWindow()
+        public SettingsWindow(AccessPassStore? accessPassStore = null, IAccessPassService? accessPassService = null)
         {
             InitializeComponent();
             ApplyLocalization();
+
+            if (accessPassStore != null && accessPassService != null)
+            {
+                accessPassControl.SetAccessPassDependencies(accessPassStore, accessPassService);
+            }
 
             welcomeScreenControl.LoadSettings();
             apiConnectionControl.LoadSettings();
@@ -46,6 +42,11 @@ namespace Virtuagym.CheckIn.WPF
             clubServicesControl.LoadSettings();
             accessPassControl.LoadSettings();
             jablotronClientControl.LoadSettings();
+
+            // Access Pass Deletion Settings
+            cmbAccessPassDeletionMode.SelectedIndex = Settings.Default.AccessPassDeletionMode;
+            txtAccessPassDeletionDays.Text = Settings.Default.AccessPassDeletionDays.ToString();
+            panelAccessPassDeletionDays.Visibility = (Settings.Default.AccessPassDeletionMode == 1) ? Visibility.Visible : Visibility.Collapsed;
 
             developerSimulationControl.SetMappings(checkinMappingsControl.CheckinClientMappings);
 
@@ -68,6 +69,14 @@ namespace Virtuagym.CheckIn.WPF
             // Language change preview â€” no restart needed here; applied on Save
         }
 
+        private void cmbAccessPassDeletionMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (cmbAccessPassDeletionMode.SelectedIndex == 1)
+                panelAccessPassDeletionDays.Visibility = Visibility.Visible;
+            else
+                panelAccessPassDeletionDays.Visibility = Visibility.Collapsed;
+        }
+
         private void ApplyLocalization()
         {
             Title = L.T("Settings_Title");
@@ -87,8 +96,8 @@ namespace Virtuagym.CheckIn.WPF
             lblDebugMode.Text = L.T("Settings_Lbl_DebugMode");
             lblClearTransientDataOnStartup.Text = L.T("Settings_Lbl_ClearTransientDataOnStartup");
 
-            btnSave.Content   = L.T("Settings_Btn_Save");
-            btnCancel.Content = L.T("Settings_Btn_Cancel");
+            btnSave.Content   = L.T("Btn_Save");
+            btnCancel.Content = L.T("Btn_Cancel");
             lblRestartHint.Text = L.T("Settings_Hint_RestartRequired");
 
             // Populate language ComboBox dynamically from available lang_*.json files.
@@ -147,7 +156,7 @@ namespace Virtuagym.CheckIn.WPF
             XmlDocument doc = new XmlDocument();
             doc.Load(configPath);
 
-            XmlNode settingsNode = doc.SelectSingleNode("//applicationSettings/Virtuagym.CheckIn.Properties.Settings");
+            XmlNode settingsNode = doc.SelectSingleNode("//applicationSettings/Virtuagym.CheckIn.WPF.Properties.Settings");
             if (settingsNode == null) return;
 
             void update(string key, string val) => UpdateSettingValue(settingsNode, key, val);
@@ -157,6 +166,8 @@ namespace Virtuagym.CheckIn.WPF
             update("ClearTransientMemberDataOnStartup", chkClearTransientDataOnStartup.IsChecked.ToString());
             string selectedLang = (cmbLanguage.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "en";
             update("AppLanguage", selectedLang);
+            update("AccessPassDeletionMode", cmbAccessPassDeletionMode.SelectedIndex.ToString());
+            update("AccessPassDeletionDays", txtAccessPassDeletionDays.Text);
 
             // Delegate to each UserControl
             welcomeScreenControl.SaveSettings(update);

@@ -34,7 +34,7 @@
                     </div>
                     <div style="display:flex; flex-direction:column; gap:4px;">
                         <InputFile OnChange="OnPhotoSelected" accept="image/*" style="font-size:12px; width:160px;" />
-                        <button type="button" class="btn btn-secondary" style="padding:2px 10px; font-size:12px;" @onclick="CaptureWebcam">@L.T("AP_Edit_Btn_Webcam")</button>
+                        <button type="button" class="btn btn-secondary" style="padding:2px 10px; font-size:12px;" @onclick="OpenWebcamDialog">@L.T("AP_Edit_Btn_Webcam")</button>
                         @if (!string.IsNullOrEmpty(_photoPreviewUrl))
                         {
                             <button type="button" class="btn btn-secondary" style="padding:2px 10px; font-size:12px; background:#b71c1c;" @onclick="RemovePhoto">@L.T("AP_Edit_Btn_RemovePhoto")</button>
@@ -48,7 +48,7 @@
                     @if (IsNew || string.IsNullOrWhiteSpace(Entry.CardId))
                     {
                         <button type="button" class="btn btn-secondary" style="white-space:nowrap;" @onclick="GenerateCardId">@L.T("AP_Edit_Btn_Generate")</button>
-                        <button type="button" class="btn btn-secondary" style="white-space:nowrap;" @onclick="ToggleReadCard">@(_isReadingCard ? L.T("AP_Edit_Btn_Cancel") : L.T("AP_Edit_Btn_ReadCard"))</button>
+                        <button type="button" class="btn btn-secondary" style="white-space:nowrap;" @onclick="ToggleReadCard">@(_isReadingCard ? L.T("Btn_Cancel") : L.T("AP_Edit_Btn_ReadCard"))</button>
                     }
                 </div>
                 @if (_isReadingCard)
@@ -97,11 +97,51 @@
             }
         </div>
         <div class="modal-footer">
-            <button class="btn btn-secondary" @onclick="Cancel">@L.T("AP_Edit_Btn_Cancel")</button>
+            <button class="btn btn-secondary" @onclick="Cancel">@L.T("Btn_Cancel")</button>
             <button class="btn" @onclick="Save">@L.T("AP_Edit_Btn_Save")</button>
         </div>
     </div>
 </div>
+
+@if (_showWebcamCapture)
+{
+    <div class="modal-overlay visible" style="z-index:1200;">
+        <div class="modal-dialog" style="width:min(90vw,720px);">
+            <div class="modal-header">
+                <h4>@L.T("AP_Edit_Btn_Webcam")</h4>
+                <button class="modal-close" @onclick="CloseWebcamDialog">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <label style="min-width:70px;">Kamera:</label>
+                    <select class="form-input" style="flex:1;" value="@_selectedWebcamDeviceId" @onchange="OnWebcamDeviceChanged" disabled="@_webcamInitializing">
+                        @foreach (var camera in _webcamDevices)
+                        {
+                            <option value="@camera.DeviceId">@camera.Label</option>
+                        }
+                    </select>
+                </div>
+
+                <div style="width:100%; background:#111; border-radius:8px; border:1px solid #444; overflow:hidden; min-height:300px; display:flex; align-items:center; justify-content:center;">
+                    <video @ref="_webcamVideoElement" autoplay playsinline muted style="width:100%; height:auto; display:block;"></video>
+                </div>
+
+                @if (_webcamInitializing)
+                {
+                    <div class="text-muted" style="margin-top:8px;">Kamera wird gestartet...</div>
+                }
+                @if (!string.IsNullOrWhiteSpace(_webcamError))
+                {
+                    <div class="test-result error" style="margin-top:8px;">@_webcamError</div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseWebcamDialog">@L.T("Btn_Cancel")</button>
+                <button class="btn" @onclick="CaptureWebcamPhoto" disabled="@_webcamInitializing">@L.T("AP_Edit_Webcam_Btn_Capture")</button>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     [Parameter] public AccessPassEntry Entry { get; set; } = new();
@@ -126,6 +166,13 @@
     private string? _photoPreviewUrl;
     private byte[]? _photoBytes;
     private bool _photoRemoved;
+    private bool _showWebcamCapture;
+    private bool _webcamPreviewActive;
+    private bool _webcamInitializing;
+    private string? _webcamError;
+    private string? _selectedWebcamDeviceId;
+    private List<WebcamDeviceOption> _webcamDevices = [];
+    private ElementReference _webcamVideoElement;
 
     /// <summary>Photo bytes selected/captured by the user, or null.</summary>
     public byte[]? PhotoBytes => _photoBytes;
@@ -186,6 +233,8 @@
     public void Dispose()
     {
         HardwareScanner.OnCardScanned -= OnCardScanned;
+        _ = StopWebcamPreviewAsync();
+        _dotNetRef?.Dispose();
     }
 
     /// <summary>
@@ -244,7 +293,13 @@
             return;
         }
 
-        var tempEntry = new AccessPassEntry { Id = Entry.Id, CardId = _cardId!.Trim() };
+        var tempEntry = new AccessPassEntry { 
+            Id = Entry.Id, 
+            CardId = _cardId!.Trim(), 
+            IsUnlimited = _isUnlimited, 
+            ValidFrom = !_isUnlimited && _validFrom.HasValue ? _validFrom.Value.ToUniversalTime().ToString("o") : null,
+            ValidUntil = !_isUnlimited && _validUntil.HasValue ? _validUntil.Value.ToUniversalTime().ToString("o") : null 
+        };
         var (_, dataUri) = QrService.GenerateTokenAndQr(tempEntry, ClubSecret);
         if (string.IsNullOrEmpty(dataUri))
         {
@@ -254,7 +309,11 @@
         _qrDataUri = dataUri;
     }
 
-    private async Task Cancel() => await OnCancel.InvokeAsync();
+    private async Task Cancel()
+    {
+        await CloseWebcamDialog();
+        await OnCancel.InvokeAsync();
+    }
 
     private async Task OnPhotoSelected(InputFileChangeEventArgs e)
     {
@@ -267,21 +326,128 @@
         _photoPreviewUrl = $"data:{file.ContentType};base64,{Convert.ToBase64String(_photoBytes)}";
     }
 
-    private async Task CaptureWebcam()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_showWebcamCapture && !_webcamPreviewActive && !_webcamInitializing)
+            await InitializeWebcamPreviewAsync();
+    }
+
+    private async Task OpenWebcamDialog()
+    {
+        _error = null;
+        _webcamError = null;
+        _showWebcamCapture = true;
+        _webcamPreviewActive = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task InitializeWebcamPreviewAsync()
+    {
+        _webcamInitializing = true;
+        try
+        {
+            HardwareScanner.PauseAllCameras();
+
+            var devices = await JS.InvokeAsync<List<WebcamDeviceOption>>("webcamGetDevices") ?? [];
+            _webcamDevices = devices;
+
+            if (_webcamDevices.Count == 0)
+            {
+                _webcamError = L.T("AP_Edit_Err_WebcamFailed");
+                return;
+            }
+
+            _selectedWebcamDeviceId ??= _webcamDevices[0].DeviceId;
+            await JS.InvokeVoidAsync("webcamStartPreview", _webcamVideoElement, _selectedWebcamDeviceId);
+            _webcamPreviewActive = true;
+            _webcamError = null;
+        }
+        catch(Exception ex) when (ex is JSException or TaskCanceledException or OperationCanceledException)
+        {
+            _webcamError = L.T("AP_Edit_Err_WebcamFailed");
+        }
+        finally
+        {
+            _webcamInitializing = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task OnWebcamDeviceChanged(ChangeEventArgs e)
+    {
+        _selectedWebcamDeviceId = e.Value?.ToString();
+        try
+        {
+            await JS.InvokeVoidAsync("webcamStartPreview", _webcamVideoElement, _selectedWebcamDeviceId);
+            _webcamPreviewActive = true;
+            _webcamError = null;
+        }
+        catch (Exception ex) when (ex is JSException or TaskCanceledException or OperationCanceledException)
+        {
+            _webcamError = L.T("AP_Edit_Err_WebcamFailed");
+        }
+    }
+
+    private DotNetObjectReference<EditAccessPassDialog>? _dotNetRef;
+
+    private async Task CaptureWebcamPhoto()
     {
         try
         {
-            var base64 = await JS.InvokeAsync<string?>("webcamCapture");
-            if (!string.IsNullOrEmpty(base64))
-            {
-                _photoBytes = Convert.FromBase64String(base64);
-                _photoRemoved = false;
-                _photoPreviewUrl = $"data:image/jpeg;base64,{base64}";
-            }
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("webcamCaptureFrameCallback", _dotNetRef);
         }
         catch
         {
-            _error = L.T("AP_Edit_Err_WebcamFailed");
+            _webcamError = L.T("AP_Edit_Err_WebcamFailed");
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnWebcamCaptureResult(string? base64)
+    {
+        if (string.IsNullOrWhiteSpace(base64))
+        {
+            _webcamError = L.T("AP_Edit_Err_WebcamFailed");
+        }
+        else
+        {
+            _photoBytes = Convert.FromBase64String(base64);
+            _photoRemoved = false;
+            _photoPreviewUrl = $"data:image/jpeg;base64,{base64}";
+            await CloseWebcamDialog();
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CloseWebcamDialog()
+    {
+        await StopWebcamPreviewAsync();
+        _showWebcamCapture = false;
+        _webcamInitializing = false;
+        _webcamError = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task StopWebcamPreviewAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("webcamStopPreview", _webcamVideoElement);
+        }
+        catch
+        {
+            // ignored on teardown/disconnect
+        }
+        _webcamPreviewActive = false;
+
+        try
+        {
+            HardwareScanner.ResumeAllCameras();
+        }
+        catch
+        {
+            // best effort on teardown
         }
     }
 
@@ -298,5 +464,11 @@
         return DateTime.TryParse(iso, null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt)
             ? dt.ToLocalTime()
             : null;
+    }
+
+    private sealed class WebcamDeviceOption
+    {
+        public string DeviceId { get; set; } = "";
+        public string Label { get; set; } = "";
     }
 }

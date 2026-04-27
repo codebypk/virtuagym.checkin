@@ -295,7 +295,7 @@
             using var cache = new Virtuagym.API.Services.MemberCacheService();
             cache.DeleteByMemberId(_selectedCacheEntry.MemberId);
             _allCacheEntries.Remove(_selectedCacheEntry);
-            _cacheSearchStatus = string.Format(L.T("Web_MemberTools_EntryDeleted"), _selectedCacheEntry.DisplayName);
+            _cacheSearchStatus = string.Format(L.T("Dev_EntryDeleted"), _selectedCacheEntry.DisplayName);
             _selectedCacheEntry = null;
             _editingCacheEntry = null;
         }
@@ -321,7 +321,7 @@
             }
             var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"member_cache_export_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
             File.WriteAllText(path, sb.ToString(), Encoding.UTF8);
-            _cacheStatus = string.Format(L.T("Web_MemberTools_EntriesExported"), _allCacheEntries.Count, Path.GetFileName(path));
+            _cacheStatus = string.Format(L.T("Dev_ExportSuccess"), _allCacheEntries.Count, Path.GetFileName(path));
         }
         catch (Exception ex)
         {

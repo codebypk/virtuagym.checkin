@@ -1,8 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFrameworks>net10.0;net10.0-windows</TargetFrameworks>
     <OutputType>Library</OutputType>
-    <RuntimeIdentifiers>win</RuntimeIdentifiers>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
   <ItemGroup>
@@ -11,10 +10,12 @@
     <PackageReference Include="hidlibrary">
       <Version>3.3.40</Version>
     </PackageReference>
-    <PackageReference Include="OpenCvSharp4.Windows" Version="4.11.0.20250506" />
-    <PackageReference Include="OpenCvSharp4.Extensions" Version="4.11.0.20250506" />
-    <PackageReference Include="System.Management" Version="10.0.0-preview.3.25171.5" />
+    <PackageReference Include="OpenCvSharp4" Version="4.13.0.20260330" />
     <PackageReference Include="ZXing.Net" Version="0.16.11" />
     <PackageReference Include="ZXing.Net.Bindings.Windows.Compatibility" Version="0.16.14" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <PackageReference Include="System.Management" Version="10.0.0-preview.3.25171.5" />
   </ItemGroup>
 </Project>

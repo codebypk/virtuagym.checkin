@@ -26,6 +26,11 @@
         <label>QR Camera Preview:</label>
         <input type="checkbox" @bind="_settings.ShowQrCameraPreviewOnWelcome" />
     </div>
+    <div class="form-group">
+        <label>@L.T("Settings_Lbl_DeviceHotplugPollIntervalSeconds")</label>
+        <input type="number" min="0" max="300" @bind="_settings.DeviceHotplugPollIntervalSeconds" class="form-input" />
+        <div class="text-muted" style="margin-top:4px;">@L.T("Settings_Hint_DeviceHotplugPollIntervalSeconds")</div>
+    </div>
 
     <h5>Idle Hint Texts</h5>
     <div class="form-group">

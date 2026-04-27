@@ -7,7 +7,7 @@ namespace Virtuagym.CheckIn.WPF.Services;
 /// </summary>
 public class WpfWelcomeDisplay(WelcomeWindow window) : IWelcomeDisplay
 {
-    public void ShowLoader() => window.ShowLoader();
+    public void ShowLoader(string? readerName = null) => window.ShowLoader();
 
     public void ShowCheckinResult(string status, string name, string? avatarUrl, string[] clientMessages, string? readerName = null)
         => window.ShowCheckinResult(status, name, avatarUrl, clientMessages, readerName);

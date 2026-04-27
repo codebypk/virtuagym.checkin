@@ -147,12 +147,12 @@ namespace Virtuagym.CheckIn.WPF.Controls
                 if (gates.Count > 0)
                     cmbGates.SelectedIndex = 0;
 
-                SetStatus(string.Format(L.T("Dev_JabGate_LoadedCount"), gates.Count), Brushes.Gray);
+                SetStatus(string.Format(L.T("Common_Pg_LoadedCount"), gates.Count), Brushes.Gray);
             }
             catch (Exception ex)
             {
                 cmbGates.ItemsSource = null;
-                SetStatus(string.Format(L.T("Dev_JabGate_LoadError"), ex.Message), Brushes.Red);
+                SetStatus(string.Format(L.T("Common_Pg_LoadError"), ex.Message), Brushes.Red);
             }
         }
 

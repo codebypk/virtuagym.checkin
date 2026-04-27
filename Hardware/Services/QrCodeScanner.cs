@@ -20,6 +20,7 @@ namespace Hardware.Services
     /// </summary>
     public class QrCodeScanner : IDisposable
     {
+        private readonly string _mappingUuid;
         private readonly IHardwareLogger _logger;
         private readonly int _cameraIndex;
         private readonly string _name;
@@ -51,6 +52,11 @@ namespace Hardware.Services
 
         private bool _disposed;
 
+        /// <summary>
+        /// Der Geräte-Mapping-ID, die beim Erstellen des Readers angegeben wurde.
+        /// </summary>
+        public string MappingUuid => _mappingUuid;
+
         /// <summary>Statische Registry aller aktiven Scanner-Instanzen.</summary>
         private static readonly List<QrCodeScanner> _activeInstances = new();
         private static readonly object _instanceLock = new();
@@ -70,6 +76,7 @@ namespace Hardware.Services
         /// <summary>
         /// Erstellt einen neuen QR-Code-Scanner.
         /// </summary>
+        /// <param name="mappingUuid">ID des Geräte-Mappings.</param>
         /// <param name="logger">Logger für Log-Ausgaben.</param>
         /// <param name="cameraIndex">Index des Kamera-Geräts.</param>
         /// <param name="name">Optionaler Anzeigename.</param>
@@ -78,12 +85,13 @@ namespace Hardware.Services
         /// <param name="resolutionWidth">Kamera-Auflösung Breite (Standard: 640).</param>
         /// <param name="resolutionHeight">Kamera-Auflösung Höhe (Standard: 480).</param>
         /// <param name="captureApi">Video-Backend (Standard: ANY).</param>
-        public QrCodeScanner(IHardwareLogger logger, int cameraIndex, string name = null,
+        public QrCodeScanner(string mappingUuid, IHardwareLogger logger, int cameraIndex, string name = null,
             double duplicateTimeoutSeconds = 5, bool debugMode = false,
             int resolutionWidth = 640, int resolutionHeight = 480,
             VideoCaptureAPIs captureApi = VideoCaptureAPIs.ANY)
         {
             ArgumentNullException.ThrowIfNull(logger);
+            _mappingUuid = mappingUuid;
             _logger = logger;
             _cameraIndex = cameraIndex;
             _name = name;

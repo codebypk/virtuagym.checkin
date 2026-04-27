@@ -35,7 +35,12 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<HardwareScannerSer
 
 // Blazor Server
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents()
+    .AddHubOptions(options =>
+    {
+        // Allow larger JS interop payloads (e.g. webcam base64 frames)
+        options.MaximumReceiveMessageSize = 4 * 1024 * 1024; // 4 MB
+    });
 
 var app = builder.Build();
 

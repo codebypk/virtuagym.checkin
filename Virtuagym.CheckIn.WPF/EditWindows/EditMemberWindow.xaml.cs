@@ -372,7 +372,7 @@ namespace Virtuagym.CheckIn.WPF
                     else
                     {
                         SetStatus(txtSaveStatus, L.T("EditMember_NoApiResponse"), Brushes.Red);
-                        WriteLog("Speichern ohne API-Antwort für Mitglied " + _member.member_id, Constants.LogError);
+                        WriteLog(string.Format(L.T("Log_SaveNoApiResponse"), _member.member_id), Constants.LogError);
                     }
                 }
             }
@@ -488,14 +488,14 @@ namespace Virtuagym.CheckIn.WPF
                     if (result != null)
                     {
                         SetStatus(txtAssignCreditStatus, L.T("EditMember_CreditsAssigned"), Brushes.Green);
-                        WriteLog("Credits zugewiesen für Mitglied " + _member.member_id + ": " + serviceType, Constants.LogSuccess);
+                        WriteLog(string.Format(L.T("Log_CreditsAssigned"), _member.member_id, serviceType), Constants.LogSuccess);
                         ResetCreditAssignmentInputs();
                         await LoadCreditsAsync();
                     }
                     else
                     {
                         SetStatus(txtAssignCreditStatus, L.T("EditMember_NoApiResponse"), Brushes.Red);
-                        WriteLog("Credit-Zuweisung ohne API-Antwort für Mitglied " + _member.member_id, Constants.LogError);
+                        WriteLog(string.Format(L.T("Log_CreditAssignNoApiResponse"), _member.member_id), Constants.LogError);
                     }
                 }
             }

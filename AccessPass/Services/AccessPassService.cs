@@ -138,7 +138,9 @@ public class AccessPassService : IAccessPassService
                 AvatarPath = avatarPath,
                 RemainingUses = entry.RemainingUses,
                 TotalUses = entry.TotalUses,
-                Messages = [$"Check-out: {entry.DisplayName}. {entry.RemainingUses}/{entry.TotalUses} uses remaining."]
+                Messages = entry.IsUnlimited
+                    ? [$"Check-out: {entry.DisplayName}"]
+                    : [$"Check-out: {entry.DisplayName}", $"{entry.RemainingUses}/{entry.TotalUses} uses remaining."]
             };
         }
 
@@ -151,8 +153,10 @@ public class AccessPassService : IAccessPassService
 
         if (!entry.IsUnlimited)
             entry.RemainingUses--;
+
         entry.LastCheckIn = DateTime.UtcNow.ToString("o");
         _store.Upsert(entry);
+
 
         return new AccessPassResult
         {
@@ -162,7 +166,9 @@ public class AccessPassService : IAccessPassService
             AvatarPath = avatarPath,
             RemainingUses = entry.RemainingUses,
             TotalUses = entry.TotalUses,
-            Messages = [$"Check-in: {entry.DisplayName}. {entry.RemainingUses}/{entry.TotalUses} uses remaining."]
+            Messages = entry.IsUnlimited
+                ? [$"Check-in: {entry.DisplayName}"]
+                : [$"Check-in: {entry.DisplayName}", $"{entry.RemainingUses}/{entry.TotalUses} uses remaining."]
         };
     }
 
@@ -177,5 +183,49 @@ public class AccessPassService : IAccessPassService
             TotalUses = entry?.TotalUses ?? 0,
             Messages = [message]
         };
+    }
+
+    /// <summary>
+    /// Deletes expired or depleted passes according to the configured deletion mode.
+    /// Returns the number of deleted passes.
+    /// </summary>
+    public int DeleteExpiredOrDepletedPasses(AccessPass.Models.AccessPassDeletionMode mode, int days)
+    {
+        var now = DateTime.UtcNow;
+        var all = _store.GetAll();
+        var toDelete = new List<AccessPassEntry>();
+        foreach (var pass in all)
+        {
+            if (pass.IsUnlimited || pass.IsActive) continue;
+            bool expired = false;
+            if (!string.IsNullOrWhiteSpace(pass.ValidUntil) && DateTime.TryParse(pass.ValidUntil, null, System.Globalization.DateTimeStyles.RoundtripKind, out var until))
+            {
+                expired = now > until;
+            }
+            bool depleted = !pass.IsUnlimited && pass.RemainingUses <= 0;
+            if (expired || depleted)
+            {
+                if (mode == AccessPass.Models.AccessPassDeletionMode.Immediately)
+                {
+                    toDelete.Add(pass);
+                }
+                else if (mode == AccessPass.Models.AccessPassDeletionMode.AfterXDays)
+                {
+                    if (!string.IsNullOrWhiteSpace(pass.ModifiedAt) && DateTime.TryParse(pass.ModifiedAt, null, System.Globalization.DateTimeStyles.RoundtripKind, out var modified))
+                    {
+                        if ((now - modified).TotalDays >= days)
+                            toDelete.Add(pass);
+                    }
+                    else if (!string.IsNullOrWhiteSpace(pass.ValidUntil) && DateTime.TryParse(pass.ValidUntil, null, System.Globalization.DateTimeStyles.RoundtripKind, out var validUntil))
+                    {
+                        if ((now - validUntil).TotalDays >= days)
+                            toDelete.Add(pass);
+                    }
+                }
+            }
+        }
+        foreach (var pass in toDelete)
+            _store.Remove(pass.Id);
+        return toDelete.Count;
     }
 }

@@ -117,7 +117,7 @@ public class CheckinHardwareTriggerService
                 {
                     if (string.IsNullOrWhiteSpace(condComponentId))
                     {
-                        _logger.WriteToLog($"[{displayName}] PG condition gate not configured, skipping.", Constants.LogWarning);
+                        _logger.WriteToLog($"[{displayName}] {L.T("Log_PgConditionGateNotConfigured")}", Constants.LogWarning);
                         return;
                     }
 
@@ -162,7 +162,7 @@ public class CheckinHardwareTriggerService
                     }
                     else
                     {
-                        _logger.WriteToLog($"[{displayName}] PG TimeRange invalid: '{timeFrom}'-'{timeTo}', skipping.", Constants.LogWarning);
+                        _logger.WriteToLog($"[{displayName}] {string.Format(L.T("Log_PgTimeRangeInvalid"), timeFrom, timeTo)}", Constants.LogWarning);
                         return;
                     }
                 }
@@ -205,7 +205,7 @@ public class CheckinHardwareTriggerService
         task.ContinueWith(t =>
         {
             if (t.Exception != null)
-                _logger.WriteToLog($"[{displayName}] PG Gate unbeobachteter Fehler: {t.Exception.GetBaseException().Message}", Constants.LogError);
+                _logger.WriteToLog($"[{displayName}] {L.T("Log_PgGateUnobservedError")}: {t.Exception.GetBaseException().Message}", Constants.LogError);
         }, TaskContinuationOptions.OnlyOnFaulted);
 
         _activeGateTask = task;
@@ -215,8 +215,6 @@ public class CheckinHardwareTriggerService
         JablotronCloudService client, int? serviceId, string componentId, string command,
         string gateName, string displayName, int retryCount, int retryDelayMs, CancellationToken cancellationToken)
     {
-        string failedKey = command == "ON" ? "Log_PgGateOnFailed" : "Log_PgGateOffFailed";
-
         for (int attempt = 1; attempt <= retryCount; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -225,19 +223,31 @@ public class CheckinHardwareTriggerService
                 if (client.ControlProgrammableGate(serviceId, componentId, command))
                     return true;
 
-                _logger.WriteToLog($"[{displayName}] {string.Format(L.T(failedKey), gateName)} (Versuch {attempt}/{retryCount})", Constants.LogWarning);
+                var failedMessage = command == "ON"
+                    ? string.Format(L.T("Log_PgGateOnFailed"), gateName)
+                    : string.Format(L.T("Log_PgGateOffFailed"), gateName);
+
+                _logger.WriteToLog($"[{displayName}] {string.Format(L.T("Log_PgGateRetryAttempt"), failedMessage, attempt, retryCount)}", Constants.LogWarning);
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
-                _logger.WriteToLog($"[{displayName}] {string.Format(L.T(failedKey), gateName)} (Versuch {attempt}/{retryCount}): {ex.Message}", Constants.LogWarning);
+                var failedMessage = command == "ON"
+                    ? string.Format(L.T("Log_PgGateOnFailed"), gateName)
+                    : string.Format(L.T("Log_PgGateOffFailed"), gateName);
+
+                _logger.WriteToLog($"[{displayName}] {string.Format(L.T("Log_PgGateRetryAttemptWithError"), failedMessage, attempt, retryCount, ex.Message)}", Constants.LogWarning);
             }
 
             if (attempt < retryCount)
                 await Task.Delay(retryDelayMs, cancellationToken);
         }
 
-        _logger.WriteToLog($"[{displayName}] {string.Format(L.T(failedKey), gateName)} — alle {retryCount} Versuche fehlgeschlagen.", Constants.LogWarning);
+        var finalFailedMessage = command == "ON"
+            ? string.Format(L.T("Log_PgGateOnFailed"), gateName)
+            : string.Format(L.T("Log_PgGateOffFailed"), gateName);
+
+        _logger.WriteToLog($"[{displayName}] {string.Format(L.T("Log_PgGateAllRetryAttemptsFailed"), finalFailedMessage, retryCount)}", Constants.LogWarning);
         return false;
     }
 }

@@ -5,7 +5,7 @@
   Settings.settings is listed in .gitignore and will NOT be committed.
   ============================================================================
 -->
-<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="VirtuagymMemberCheckIn.Properties" GeneratedClassName="Settings">
+<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="Virtuagym.CheckIn.WPF.Properties" GeneratedClassName="Settings">
   <Profiles />
   <Settings>
     <Setting Name="DebugMode" Type="System.Boolean" Scope="Application">
@@ -127,6 +127,9 @@
     </Setting>
     <Setting Name="DefaultDoubleScanThresholdMs" Type="System.Int32" Scope="Application">
       <Value Profile="(Default)">60000</Value>
+    </Setting>
+    <Setting Name="DeviceHotplugPollIntervalSeconds" Type="System.Int32" Scope="Application">
+      <Value Profile="(Default)">15</Value>
     </Setting>
     <Setting Name="MemberCheckinApiV0Username" Type="System.String" Scope="Application">
       <Value Profile="(Default)">YOUR_CHECKIN_API_USERNAME</Value>

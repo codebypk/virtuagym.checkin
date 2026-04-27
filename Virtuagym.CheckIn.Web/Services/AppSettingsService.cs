@@ -27,6 +27,10 @@ public sealed class AppSettingsService
     /// </summary>
     public AppSettings Current => _optionsMonitor.CurrentValue;
 
+    // --- Access Pass Deletion ---
+    public AccessPass.Models.AccessPassDeletionMode AccessPassDeletionMode => Current.AccessPassDeletionMode;
+    public int AccessPassDeletionDays => Current.AccessPassDeletionDays;
+
     /// <summary>
     /// Persists the provided <paramref name="settings"/> to <c>appsettings.json</c>.
     /// </summary>

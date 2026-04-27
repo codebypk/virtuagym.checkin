@@ -95,6 +95,7 @@ namespace Hardware.Services
         private const int SCARD_E_SERVICE_STOPPED = unchecked((int)0x8010001E);
         private const int SCARD_E_NO_READERS_AVAILABLE = unchecked((int)0x8010002E);
 
+        private readonly string _mappingUuid;
         private readonly IHardwareLogger _logger;
         private readonly string _readerName;
         private readonly string _name;
@@ -108,6 +109,25 @@ namespace Hardware.Services
         private DateTime _lastUidTime = DateTime.MinValue;
 
         /// <summary>
+        /// Der Geräte-Mapping-ID, die beim Erstellen des Readers angegeben wurde.
+        /// </summary>
+        public string MappingUuid => _mappingUuid;
+
+        /// <summary>
+        /// Indicates whether the CCID reader context is still valid (reader physically connected).
+        /// </summary>
+        public bool IsConnected
+        {
+            get
+            {
+                if (_disposed || _context == IntPtr.Zero)
+                    return false;
+                var readers = ListReaders();
+                return readers.Any(r => r.IndexOf(_readerName, StringComparison.OrdinalIgnoreCase) >= 0);
+            }
+        }
+
+        /// <summary>
         /// Wird ausgelöst wenn eine Karte gelesen wurde (nach Duplikat-Prüfung).
         /// Achtung: Event wird auf einem Hintergrund-Thread gefeuert.
         /// </summary>
@@ -116,16 +136,18 @@ namespace Hardware.Services
         /// <summary>
         /// Erstellt einen neuen CCID SmartCard Reader.
         /// </summary>
+        /// <param name="mappingUuid">ID des Geräte-Mappings.</param>
         /// <param name="logger">Logger-Instanz.</param>
         /// <param name="readerName">Teilstring des PC/SC Reader-Namens (für automatischen Match).</param>
         /// <param name="name">Optionaler Anzeigename für Log-Meldungen.</param>
         /// <param name="duplicateTimeoutSeconds">Zeitspanne in Sekunden, in der dieselbe Karte ignoriert wird.</param>
         /// <param name="debugMode">Erweiterte Log-Ausgaben aktivieren.</param>
-        public CcidSmartCardReader(IHardwareLogger logger, string readerName,
+        public CcidSmartCardReader(string mappingUuid, IHardwareLogger logger, string readerName,
             string name = null, double duplicateTimeoutSeconds = 5, bool debugMode = false)
         {
             ArgumentNullException.ThrowIfNull(logger);
             ArgumentNullException.ThrowIfNull(readerName);
+            _mappingUuid = mappingUuid;
             _logger = logger;
             _readerName = readerName;
             _name = name;

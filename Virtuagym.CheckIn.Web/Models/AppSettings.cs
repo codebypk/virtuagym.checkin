@@ -57,6 +57,10 @@ public sealed class AppSettings : IAppSettings
     public int RepeatTimeInMs { get; set; } = 400;
     public int DuplicateTimeoutSeconds { get; set; } = 5;
     public long DefaultDoubleScanThresholdMs { get; set; } = 60000;
+    /// <summary>
+    /// Polling interval for hotplug device discovery (seconds).
+    /// </summary>
+    public int DeviceHotplugPollIntervalSeconds { get; set; } = 15;
 
     // --- Member Cache ---
     public bool MemberCacheEnabled { get; set; } = true;
@@ -74,6 +78,10 @@ public sealed class AppSettings : IAppSettings
 
     // --- Logging ---
     public int LogRetentionDays { get; set; } = 30;
+
+    // --- Access Pass Deletion ---
+    public AccessPass.Models.AccessPassDeletionMode AccessPassDeletionMode { get; set; } = AccessPass.Models.AccessPassDeletionMode.Immediately;
+    public int AccessPassDeletionDays { get; set; } = 0;
 
     // --- Checkin Mappings (JSON string) ---
     public string CheckinClientMappings { get; set; } = "[]";

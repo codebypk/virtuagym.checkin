@@ -97,7 +97,7 @@ namespace Virtuagym.CheckIn.WPF
             chkIsActive.Content = L.T("AP_Edit_Lbl_Active");
             btnGenerateQr.Content = L.T("AP_Edit_Btn_GenerateQr");
             btnSave.Content = L.T("AP_Edit_Btn_Save");
-            btnCancel.Content = L.T("AP_Edit_Btn_Cancel");
+            btnCancel.Content = L.T("Btn_Cancel");
         }
 
         private void SetAvatarPreview(byte[] bytes)
@@ -190,7 +190,7 @@ namespace Virtuagym.CheckIn.WPF
 
             _isReadingCard = true;
             _cardReadBuffer = "";
-            btnReadCard.Content = L.T("AP_Edit_Btn_Cancel");
+            btnReadCard.Content = L.T("Btn_Cancel");
             txtCardIdHint.Text = L.T("AP_Edit_Hint_CardReading");
             txtCardIdHint.Foreground = System.Windows.Media.Brushes.DarkOrange;
 
@@ -344,7 +344,10 @@ namespace Virtuagym.CheckIn.WPF
             var tempEntry = new AccessPassEntry
             {
                 Id = _entry.Id,
-                CardId = txtCardId.Text.Trim()
+                CardId = txtCardId.Text.Trim(),
+                IsUnlimited = (bool)chkUnlimited.IsChecked,
+                ValidUntil = dpValidUntil.SelectedDate?.ToUniversalTime().ToString("o"),
+                ValidFrom = dpValidFrom.SelectedDate?.ToUniversalTime().ToString("o"),
             };
 
             var (token, dataUri) = _qrService.GenerateTokenAndQr(tempEntry, secret);

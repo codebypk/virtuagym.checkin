@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading.Tasks;
 using Virtuagym.API.Serialization;
 using System.Windows;
 using System.Windows.Threading;
@@ -16,6 +17,7 @@ using Virtuagym.CheckIn.Core.Abstractions;
 using Virtuagym.CheckIn.Core.Helper;
 using Virtuagym.CheckIn.Core.Services;
 using Virtuagym.CheckIn.Core.Models;
+using AccessPass.Services;
 
 namespace Virtuagym.CheckIn.WPF
 {
@@ -27,6 +29,10 @@ namespace Virtuagym.CheckIn.WPF
         private List<HidCardReader> m_rfidReaderVirtuagym;
         private List<QrCodeScanner> m_qrCodeScanners;
         private List<CcidSmartCardReader> m_ccidReaders;
+        // Track active mappings for diff-based hotplug
+        private List<CheckinClientMapping> m_activeMappings = new();
+        private DispatcherTimer? m_hotplugTimer;
+        private System.Threading.Timer? m_accessPassCleanupTimer;
         private WelcomeWindow m_welcomeWindow;
         private MemberCacheService m_memberCache;
         private CacheSyncScheduler m_cacheSyncScheduler;
@@ -34,6 +40,8 @@ namespace Virtuagym.CheckIn.WPF
         private readonly ISoundPlayer m_soundPlayer;
         private readonly IAppSettings m_appSettings;
         private readonly IVirtuagymApiServiceFactory m_apiFactory;
+        private readonly AccessPassStore m_accessPassStore;
+        private readonly IAccessPassService m_accessPassService;
         private WindowState m_storedWindowState = WindowState.Normal;
         private System.Windows.Forms.NotifyIcon m_notifyIcon;
 
@@ -59,6 +67,8 @@ namespace Virtuagym.CheckIn.WPF
             m_soundPlayer = new WpfSoundPlayer(this);
             m_appSettings = new WpfAppSettings();
             m_apiFactory = new WpfVirtuagymApiServiceFactory();
+            m_accessPassStore = new AccessPassStore();
+            m_accessPassService = new AccessPassService(m_accessPassStore);
 
             m_rfidReaderVirtuagym = new List<HidCardReader>();
             m_qrCodeScanners = new List<QrCodeScanner>();
@@ -72,7 +82,7 @@ namespace Virtuagym.CheckIn.WPF
             if (System.IO.File.Exists(Constants.IconPath)) m_notifyIcon.Icon = new System.Drawing.Icon(Constants.IconPath);
             m_notifyIcon.DoubleClick += new EventHandler(notifyIcon_DoubleClick);
 
-            // Kontextmen├╝ erstellen
+            // Kontextmenü erstellen
             var contextMenu = new System.Windows.Forms.ContextMenuStrip();
             var menuItemMainWindow = new System.Windows.Forms.ToolStripMenuItem(L.T("Main_Tray_ShowMainWindow"));
             menuItemMainWindow.Click += (s, args) => ShowMainWindow();
@@ -105,8 +115,17 @@ namespace Virtuagym.CheckIn.WPF
                 }
             }
 
+            // Access Pass Autodelete (periodisch, wie im Web-Projekt)
+            StartAccessPassCleanupTimer();
+
             // Checkin-Client-Mappings laden
             var mappings = LoadCheckinClientMappings();
+            if (m_welcomeWindow != null)
+            {
+                // Initialize QR camera preview tiles based on mappings
+                m_welcomeWindow.SetQrCameraMappings(mappings);
+            }
+
 
             // Member-Cache initialisieren (wird intern immer erstellt f├╝r AutoCheckout-Tracking)
             try
@@ -133,7 +152,7 @@ namespace Virtuagym.CheckIn.WPF
                 m_memberCache = null;
             }
 
-            // CacheSyncScheduler immer erstellen ΓÇô wird f├╝r Auto-Checkout ben├╢tigt,
+            // CacheSyncScheduler immer erstellen er wird für Auto-Checkout benötigt,
             // auch wenn die periodische Cache-Synchronisation deaktiviert ist.
             // _cacheService kann null sein wenn MemberCacheEnabled=false ΓÇô
             // AutoCheckout funktioniert dann rein API-basiert.
@@ -196,7 +215,7 @@ namespace Virtuagym.CheckIn.WPF
 
             if (mappings != null && mappings.Count > 0)
             {
-                // Sicherstellen, dass jedes Mapping eine UUID hat (R├╝ckw├ñrtskompatibilit├ñt)
+                // Sicherstellen, dass jedes Mapping eine UUID hat (Rückwärtskompatibilität)
                 bool uuidsGenerated = false;
                 foreach (var mapping in mappings)
                 {
@@ -224,7 +243,7 @@ namespace Virtuagym.CheckIn.WPF
                         if (!Enum.TryParse<OpenCvSharp.VideoCaptureAPIs>(mapping.CameraBackend, out var captureApi))
                             captureApi = OpenCvSharp.VideoCaptureAPIs.ANY;
 
-                        var scanner = new QrCodeScanner(hwLogger, mapping.CameraIndex, mapping.Name,
+                        var scanner = new QrCodeScanner(mapping.Uuid, hwLogger, mapping.CameraIndex, mapping.Name,
                             Settings.Default.DuplicateTimeoutSeconds, Settings.Default.DebugMode,
                             mapping.CameraResolutionWidth, mapping.CameraResolutionHeight, captureApi);
                         scanner.QrCodeRead += (sender2, args) => OnQrCodeRead(args, mapping);
@@ -237,7 +256,7 @@ namespace Virtuagym.CheckIn.WPF
                     {
                         if (!string.IsNullOrWhiteSpace(mapping.DeviceID))
                         {
-                            var ccid = new CcidSmartCardReader(hwLogger, mapping.DeviceID, mapping.Name,
+                            var ccid = new CcidSmartCardReader(mapping.Uuid, hwLogger, mapping.DeviceID, mapping.Name,
                                 Settings.Default.DuplicateTimeoutSeconds, Settings.Default.DebugMode);
                             ccid.CardRead += (sender2, args) => OnCardRead(args, mapping);
                             m_ccidReaders.Add(ccid);
@@ -246,14 +265,31 @@ namespace Virtuagym.CheckIn.WPF
                     }
                     else if (!string.IsNullOrWhiteSpace(mapping.DeviceID))
                     {
-                        var reader = new HidCardReader(hwLogger, mapping.DeviceID, mapping.HidProfile,
+                        var reader = new HidCardReader(mapping.Uuid, hwLogger, mapping.DeviceID, mapping.HidProfile,
                             mapping.RepeatTimeMs ?? Settings.Default.RepaitTimeInMs, mapping.Name,
                             Settings.Default.DuplicateTimeoutSeconds, Settings.Default.DebugMode);
                         reader.CardRead += (sender2, args) => OnCardRead(args, mapping);
+                        reader.DeviceConnectionChanged += (isConnected) =>
+                        {
+                            Dispatcher.Invoke(() =>
+                            {
+                                    var deviceName = mapping.Name ?? mapping.DeviceID ?? "HID";
+                                        WriteToLog(isConnected
+                                            ? string.Format(L.T("Log_DeviceReconnected"), deviceName, mapping.InputType)
+                                            : string.Format(L.T("Log_DeviceDisconnected"), deviceName, mapping.InputType),
+                                            isConnected ? Constants.LogInfo : Constants.LogWarning);
+                                        m_welcomeWindow?.UpdateDeviceAvailability(deviceName, mapping.InputType, isConnected);
+                                    });
+                                };
+
+                                // Initialize with actual current state.
+                        m_welcomeWindow?.UpdateDeviceAvailability(mapping.Name ?? mapping.DeviceID ?? "HID", mapping.InputType, reader.IsConnected);
                         m_rfidReaderVirtuagym.Add(reader);
                         WriteToLog(L.T("Log_UsbReaderLoadedInfo") + ": " + (mapping.Name ?? mapping.DeviceID), Constants.LogInfo);
                     }
                 }
+
+                m_activeMappings = mappings.Where(m => !string.IsNullOrWhiteSpace(m.CheckinKey)).ToList();
 
                 // Idle-Hint-Text basierend auf den konfigurierten Eingabetypen setzen
                 if (m_welcomeWindow != null)
@@ -276,6 +312,175 @@ namespace Virtuagym.CheckIn.WPF
             {
                 WriteToLog(L.T("Log_NoCheckinMappingsConfigured") + ".",  Constants.LogError);
             }
+
+            StartHotplugMonitor();
+        }
+
+        private void StartHotplugMonitor()
+        {
+            int seconds = Settings.Default.DeviceHotplugPollIntervalSeconds;
+            if (seconds <= 0)
+                return;
+            
+            seconds = Math.Clamp(seconds, 5, 300);
+
+            m_hotplugTimer?.Stop();
+            m_hotplugTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(seconds)
+            };
+
+            m_hotplugTimer.Tick += async (_, _) =>
+            {
+                try
+                {
+                    CameraDiscoveryService.InvalidateCache();
+                    var mappings = LoadCheckinClientMappings() ?? new List<CheckinClientMapping>();
+                    var filteredNew = mappings.Where(m => !string.IsNullOrWhiteSpace(m.CheckinKey)).ToList();
+                    var filteredOld = m_activeMappings.Where(m => !string.IsNullOrWhiteSpace(m.CheckinKey)).ToList();
+
+                    // Find removed and added mappings by DeviceID/CameraIndex/InputType
+                    var removed = filteredOld.Where(old => !filteredNew.Any(n => MappingEquals(n, old))).ToList();
+                    var added = filteredNew.Where(n => !filteredOld.Any(old => MappingEquals(n, old))).ToList();
+
+                    // Stop removed devices
+                    foreach (var mapping in removed)
+                    {
+                        StopDevice(mapping);
+                        var deviceName = mapping.Name ?? mapping.DeviceID ?? $"Kamera {mapping.CameraIndex}";
+                        WriteToLog($"Ger\u00e4t nicht mehr verf\u00fcgbar: {deviceName} ({mapping.InputType})", Constants.LogWarning);
+                        m_welcomeWindow?.UpdateDeviceAvailability(deviceName, mapping.InputType, false);
+                    }
+
+                    // Start added devices
+                    foreach (var mapping in added)
+                    {
+                        await StartDeviceAsync(mapping);
+                        var deviceName = mapping.Name ?? mapping.DeviceID ?? string.Format(L.T("Welcome_Camera_FallbackLabel"), mapping.CameraIndex);
+                        WriteToLog(string.Format(L.T("Log_HotplugDeviceAvailable"), deviceName, mapping.InputType), Constants.LogInfo);
+                        m_welcomeWindow?.UpdateDeviceAvailability(deviceName, mapping.InputType, true);
+                    }
+
+                    m_activeMappings = filteredNew;
+
+                    int total = m_activeMappings.Count;
+                    if(Settings.Default.DebugMode)
+                        WriteToLog(string.Format(L.T("Log_HotplugDevicesActive"), total), Constants.LogInfo);
+                }
+                catch (Exception ex)
+                {
+                    WriteToLog(string.Format(L.T("Log_HotplugMonitorError"), ex.Message), Constants.LogWarning);
+                }
+            };
+
+            m_hotplugTimer.Start();
+            WriteToLog(string.Format(L.T("Log_HotplugMonitorActive"), seconds), Constants.LogInfo);
+        }
+
+        // Helper to compare mappings by unique device identity
+        private static bool MappingEquals(CheckinClientMapping a, CheckinClientMapping b)
+        {
+            if (a.InputType != b.InputType) return false;
+            if (a.InputType == CheckinClientMapping.InputTypeQrCode)
+                return a.CameraIndex == b.CameraIndex && a.CameraBackend == b.CameraBackend;
+            return a.DeviceID == b.DeviceID && a.HidProfile == b.HidProfile;
+        }
+
+        // Helper to stop a device by mapping
+        private void StopDevice(CheckinClientMapping mapping)
+        {
+            if (mapping.InputType == CheckinClientMapping.InputTypeQrCode)
+            {
+                var scanner = m_qrCodeScanners.FirstOrDefault(s => s.MappingUuid == mapping.Uuid);
+                if (scanner != null)
+                {
+                    scanner.Dispose();
+                    m_qrCodeScanners.Remove(scanner);
+                    WriteToLog(string.Format(L.T("Log_QrScannerStopped"), mapping.Name ?? string.Format(L.T("Welcome_Camera_FallbackLabel"), mapping.CameraIndex)), Constants.LogInfo);
+                }
+            }
+            else if (mapping.InputType == CheckinClientMapping.InputTypeCcid)
+            {
+                var ccid = m_ccidReaders.FirstOrDefault(r => r.MappingUuid == mapping.Uuid);
+                if (ccid != null)
+                {
+                    ccid.Dispose();
+                    m_ccidReaders.Remove(ccid);
+                    WriteToLog(string.Format(L.T("Log_CcidReaderStopped"), mapping.Name ?? mapping.DeviceID), Constants.LogInfo);
+                }
+            }
+            else
+            {
+                var reader = m_rfidReaderVirtuagym.FirstOrDefault(r => r.MappingUuid == mapping.Uuid);
+                if (reader != null)
+                {
+                    reader.Dispose();
+                    m_rfidReaderVirtuagym.Remove(reader);
+                    WriteToLog(string.Format(L.T("Log_UsbReaderStopped"), mapping.Name ?? mapping.DeviceID), Constants.LogInfo);
+                }
+            }
+        }
+
+        // Helper to start a device by mapping
+        private async Task StartDeviceAsync(CheckinClientMapping mapping)
+        {
+            var hwLogger = new HardwareLoggerAdapter(this);
+            try
+            {
+                if (mapping.InputType == CheckinClientMapping.InputTypeQrCode)
+                {
+                    if (!Enum.TryParse<OpenCvSharp.VideoCaptureAPIs>(mapping.CameraBackend, out var captureApi))
+                        captureApi = OpenCvSharp.VideoCaptureAPIs.ANY;
+
+                    var scanner = new QrCodeScanner(mapping.Uuid, hwLogger, mapping.CameraIndex, mapping.Name,
+                        Settings.Default.DuplicateTimeoutSeconds, Settings.Default.DebugMode,
+                        mapping.CameraResolutionWidth, mapping.CameraResolutionHeight, captureApi);
+                    scanner.QrCodeRead += (sender2, args) => OnQrCodeRead(args, mapping);
+                    if (m_welcomeWindow != null)
+                        scanner.CameraPreview += (sender2, args) => m_welcomeWindow.UpdateQrCameraPreview(args.FrameData, args.CameraLabel);
+                    m_qrCodeScanners.Add(scanner);
+                    WriteToLog(string.Format(L.T("Log_QrScannerStarted"), mapping.Name ?? string.Format(L.T("Welcome_Camera_FallbackLabel"), mapping.CameraIndex)), Constants.LogInfo);
+                }
+                else if (mapping.InputType == CheckinClientMapping.InputTypeCcid)
+                {
+                    if (!string.IsNullOrWhiteSpace(mapping.DeviceID))
+                    {
+                        var ccid = new CcidSmartCardReader(mapping.Uuid, hwLogger, mapping.DeviceID, mapping.Name,
+                            Settings.Default.DuplicateTimeoutSeconds, Settings.Default.DebugMode);
+                        ccid.CardRead += (sender2, args) => OnCardRead(args, mapping);
+                        m_ccidReaders.Add(ccid);
+                        WriteToLog(string.Format(L.T("Log_CcidReaderStarted"), mapping.Name ?? mapping.DeviceID), Constants.LogInfo);
+                    }
+                }
+                else if (!string.IsNullOrWhiteSpace(mapping.DeviceID))
+                {
+                    var reader = new HidCardReader(mapping.Uuid, hwLogger, mapping.DeviceID, mapping.HidProfile,
+                        mapping.RepeatTimeMs ?? Settings.Default.RepaitTimeInMs, mapping.Name,
+                        Settings.Default.DuplicateTimeoutSeconds, Settings.Default.DebugMode);
+                    reader.CardRead += (sender2, args) => OnCardRead(args, mapping);
+                    m_rfidReaderVirtuagym.Add(reader);
+                    WriteToLog(string.Format(L.T("Log_UsbReaderStarted"), mapping.Name ?? mapping.DeviceID), Constants.LogInfo);
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteToLog(string.Format(L.T("Log_DeviceStartError"), mapping.Name ?? mapping.DeviceID ?? "?", ex.Message), Constants.LogError);
+            }
+        }
+
+        private void DisposeHardwareDevices()
+        {
+            for (int i = 0; i < m_rfidReaderVirtuagym.Count; i++)
+                m_rfidReaderVirtuagym[i].Dispose();
+            m_rfidReaderVirtuagym.Clear();
+
+            foreach (var scanner in m_qrCodeScanners)
+                scanner.Dispose();
+            m_qrCodeScanners.Clear();
+
+            foreach (var ccid in m_ccidReaders)
+                ccid.Dispose();
+            m_ccidReaders.Clear();
         }
 
         /// <summary>
@@ -345,7 +550,7 @@ namespace Virtuagym.CheckIn.WPF
                 {
                     m_welcomeWindow?.ShowLoader();
                     IWelcomeDisplay? display = m_welcomeWindow != null ? new WpfWelcomeDisplay(m_welcomeWindow) : null;
-                    var handler = new CheckinHandler(this, mapping, display, m_appSettings, m_soundPlayer, m_apiFactory, m_checkinCache);
+                    var handler = new CheckinHandler(this, mapping, display, m_appSettings, m_soundPlayer, m_apiFactory, m_checkinCache, m_accessPassService);
                     await handler.PerformCheckinAsync(e.Card, e.ReaderName);
                 }
                 catch (Exception ex)
@@ -367,7 +572,7 @@ namespace Virtuagym.CheckIn.WPF
                 {
                     m_welcomeWindow?.ShowLoader();
                     IWelcomeDisplay? display = m_welcomeWindow != null ? new WpfWelcomeDisplay(m_welcomeWindow) : null;
-                    var handler = new CheckinHandler(this, mapping, display, m_appSettings, m_soundPlayer, m_apiFactory, m_checkinCache);
+                    var handler = new CheckinHandler(this, mapping, display, m_appSettings, m_soundPlayer, m_apiFactory, m_checkinCache, m_accessPassService);
                     await handler.PerformCheckinAsync(e.QrCode, e.ReaderName);
                 }
                 catch (Exception ex)
@@ -391,17 +596,12 @@ namespace Virtuagym.CheckIn.WPF
                 }
             }
 
-            for (int i = 0; i < m_rfidReaderVirtuagym.Count; i++)
-                m_rfidReaderVirtuagym[i].Dispose();
-            m_rfidReaderVirtuagym.Clear();
+            m_hotplugTimer?.Stop();
+            m_hotplugTimer = null;
+            m_accessPassCleanupTimer?.Dispose();
+            m_accessPassCleanupTimer = null;
 
-            foreach (var scanner in m_qrCodeScanners)
-                scanner.Dispose();
-            m_qrCodeScanners.Clear();
-
-            foreach (var ccid in m_ccidReaders)
-                ccid.Dispose();
-            m_ccidReaders.Clear();
+            DisposeHardwareDevices();
 
             m_cacheSyncScheduler?.Dispose();
             m_memberCache?.Dispose();
@@ -463,7 +663,7 @@ namespace Virtuagym.CheckIn.WPF
 
         private void ShowSettingsWindow()
         {
-            var settingsWindow = new SettingsWindow();
+            var settingsWindow = new SettingsWindow(m_accessPassStore, m_accessPassService);
             settingsWindow.Owner = this;
             settingsWindow.SetCardReaders(m_ccidReaders, m_rfidReaderVirtuagym);
             settingsWindow.ShowDialog();
@@ -540,6 +740,38 @@ namespace Virtuagym.CheckIn.WPF
             {
                 logText += L.T("Log_ErrorOnWrite") + " " + ex.Message;
                 m_logWriter.Enqueue(logText, logFilePath);
+            }
+        }
+
+        private void StartAccessPassCleanupTimer()
+        {
+            m_accessPassCleanupTimer?.Dispose();
+            m_accessPassCleanupTimer = null;
+
+            var mode = (AccessPass.Models.AccessPassDeletionMode)Settings.Default.AccessPassDeletionMode;
+            int days = Settings.Default.AccessPassDeletionDays;
+
+            if (mode == AccessPass.Models.AccessPassDeletionMode.AfterXDays && days > 0)
+            {
+                m_accessPassCleanupTimer = new System.Threading.Timer(_ => RunAccessPassCleanup(),
+                    null, TimeSpan.FromHours(24), TimeSpan.FromHours(24));
+                WriteToLog(string.Format(L.T("Log_AccessPassAutodeleteEnabled"), days), Constants.LogInfo);
+            }
+        }
+
+        private void RunAccessPassCleanup()
+        {
+            try
+            {
+                var mode = (AccessPass.Models.AccessPassDeletionMode)Settings.Default.AccessPassDeletionMode;
+                int days = Settings.Default.AccessPassDeletionDays;
+                int deleted = m_accessPassService.DeleteExpiredOrDepletedPasses(mode, days);
+                if (deleted > 0)
+                    WriteToLog(string.Format(L.T("Log_AccessPassAutodeleteDeleted"), deleted), Constants.LogInfo);
+            }
+            catch (Exception ex)
+            {
+                WriteToLog(string.Format(L.T("Log_AccessPassAutodeleteError"), ex.Message), Constants.LogWarning);
             }
         }
 

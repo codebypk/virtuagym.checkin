@@ -22,16 +22,16 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Name</th>
-                    <th>Typ</th>
-                    <th>Gerät</th>
-                    <th>Hersteller</th>
-                    <th>Check-In Key</th>
-                    <th>Relay</th>
-                    <th>Relay COM</th>
-                    <th>Relay Nr.</th>
-                    <th>PG</th>
-                    <th>PG Gate</th>
+                    <th>@Virtuagym.CheckIn.Core.Services.L.T("CheckinMappings_Col_Name")</th>
+                    <th>@Virtuagym.CheckIn.Core.Services.L.T("CheckinMappings_Col_Type")</th>
+                    <th>@Virtuagym.CheckIn.Core.Services.L.T("CheckinMappings_Col_Device")</th>
+                    <th>@Virtuagym.CheckIn.Core.Services.L.T("CheckinMappings_Col_Manufacturer")</th>
+                    <th>@Virtuagym.CheckIn.Core.Services.L.T("CheckinMappings_Col_CheckinKey")</th>
+                    <th>@Virtuagym.CheckIn.Core.Services.L.T("CheckinMappings_Col_Relay")</th>
+                    <th>@Virtuagym.CheckIn.Core.Services.L.T("CheckinMappings_Col_RelayCom")</th>
+                    <th>@Virtuagym.CheckIn.Core.Services.L.T("CheckinMappings_Col_RelayNr")</th>
+                    <th>@Virtuagym.CheckIn.Core.Services.L.T("CheckinMappings_Col_PG")</th>
+                    <th>@Virtuagym.CheckIn.Core.Services.L.T("CheckinMappings_Col_PGGate")</th>
                 </tr>
             </thead>
             <tbody>
@@ -160,6 +160,10 @@
                     if (parts.Count == 0 && !string.IsNullOrWhiteSpace(device.Description)) parts.Add(device.Description);
                     if (parts.Count == 0) parts.Add("HID-Gerät");
                     string displayName = $"{deviceId} - {string.Join(" / ", parts)}";
+
+                    // Only keep the first interface per physical device (same DeviceId)
+                    if (_availableHidDevices.Any(d => string.Equals(d.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase)))
+                        continue;
 
                     _availableHidDevices.Add(new HidDeviceInfo
                     {

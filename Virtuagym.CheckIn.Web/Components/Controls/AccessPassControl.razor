@@ -1,7 +1,22 @@
 @using AccessPass.Models
 @using AccessPass.Services
+@using Microsoft.Extensions.Options
+@using Virtuagym.CheckIn.Web.Models
 @inject IAccessPassService AccessPassService
 @inject AccessPassQrService QrService
+@inject IOptions<AppSettings> SettingsOptions
+
+@code {
+    protected override void OnInitialized()
+    {
+        var settings = SettingsOptions.Value;
+        AccessPassService.DeleteExpiredOrDepletedPasses(settings.AccessPassDeletionMode, settings.AccessPassDeletionDays); // Run cleanup at startup
+        _passes = AccessPassService.GetAll()
+            .OrderByDescending(p => p.IsActive)
+            .ThenByDescending(p => p.CreatedAt)
+            .ToList();
+    }
+}
 
 <div class="control-panel">
     <h4>Access Passes</h4>
@@ -21,14 +36,14 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>Name</th>
-                    <th>Card-ID</th>
-                    <th>Verbleibend</th>
-                    <th>Gültig bis</th>
-                    <th>Status</th>
-                    <th>Eingecheckt</th>
-                    <th>Erstellt</th>
-                    <th style="width:220px;">Aktionen</th>
+                    <th>@Virtuagym.CheckIn.Core.Services.L.T("AccessPass_Col_Name")</th>
+                    <th>@Virtuagym.CheckIn.Core.Services.L.T("AccessPass_Col_CardId")</th>
+                    <th>@Virtuagym.CheckIn.Core.Services.L.T("AccessPass_Col_Remaining")</th>
+                    <th>@Virtuagym.CheckIn.Core.Services.L.T("AccessPass_Col_ValidUntil")</th>
+                    <th>@Virtuagym.CheckIn.Core.Services.L.T("AccessPass_Col_Status")</th>
+                    <th>@Virtuagym.CheckIn.Core.Services.L.T("AccessPass_Col_CheckedIn")</th>
+                    <th>@Virtuagym.CheckIn.Core.Services.L.T("AccessPass_Col_Created")</th>
+                    <th style="width:220px;">@Virtuagym.CheckIn.Core.Services.L.T("AccessPass_Col_Actions")</th>
                 </tr>
             </thead>
             <tbody>
@@ -89,11 +104,6 @@
                 {
                     <img src="@_qrDataUri" alt="QR-Code" style="max-width:280px;" />
                     <p class="text-muted" style="margin-top:8px; word-break:break-all; font-size:11px;">@_qrToken</p>
-                    <div style="margin-top:8px;">
-                        <label style="font-size:12px;">Gültigkeit (Stunden):</label>
-                        <input type="number" class="form-input" style="width:100px; display:inline-block;" min="0" @bind="_qrValidHours" />
-                        <button class="btn" style="padding:4px 12px; font-size:12px;" @onclick="() => ShowQrCode(_qrEntry)">Neu generieren</button>
-                    </div>
                 }
                 else
                 {
@@ -121,20 +131,6 @@
     private AccessPassEntry? _qrEntry;
     private string? _qrToken;
     private string? _qrDataUri;
-    private int _qrValidHours = 720;
-
-    protected override void OnInitialized()
-    {
-        Refresh();
-    }
-
-    private void Refresh()
-    {
-        _passes = AccessPassService.GetAll()
-            .OrderByDescending(p => p.IsActive)
-            .ThenByDescending(p => p.CreatedAt)
-            .ToList();
-    }
 
     private void OpenCreateDialog()
     {
@@ -194,7 +190,6 @@
         _showEditDialog = false;
         _editDialogRef = null;
         _editAvatarUrl = null;
-        Refresh();
     }
 
     private void CloseEditDialog()
@@ -205,7 +200,7 @@
     private void ShowQrCode(AccessPassEntry entry)
     {
         _qrEntry = entry;
-        var (token, dataUri) = QrService.GenerateTokenAndQr(entry, ClubSecret, _qrValidHours);
+        var (token, dataUri) = QrService.GenerateTokenAndQr(entry, ClubSecret);
         _qrToken = token;
         _qrDataUri = dataUri;
         _showQrDialog = true;
@@ -220,13 +215,11 @@
     private void DeactivatePass(AccessPassEntry entry)
     {
         AccessPassService.Deactivate(entry.Id);
-        Refresh();
     }
 
     private void DeletePass(AccessPassEntry entry)
     {
         AccessPassService.Delete(entry.Id);
-        Refresh();
     }
 
     private static string FormatDate(string? isoDate)

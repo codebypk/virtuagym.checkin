@@ -22,6 +22,7 @@ namespace Hardware.Services
             Beep
         }
 
+        private readonly string _mappingUuid;
         private readonly IHardwareLogger _logger;
         private readonly string _deviceID;
         private readonly string _name;
@@ -31,8 +32,6 @@ namespace Hardware.Services
         private readonly bool _debugMode;
 
         private HidDevice _myDevice;
-        private bool _deviceAttached;
-        private bool _deviceRemoved = false;
 
         private string _lastRfidTag = String.Empty;
         private DateTime _lastRfidTagTime = DateTime.MinValue;
@@ -42,10 +41,26 @@ namespace Hardware.Services
         private bool _readInProgress;
 
         /// <summary>
+        /// Der Geräte-Mapping-ID, die beim Erstellen des Readers angegeben wurde.
+        /// </summary>
+        public string MappingUuid => _mappingUuid;
+
+        /// <summary>
+        /// Indicates whether the underlying HID device is physically connected.
+        /// </summary>
+        public bool IsConnected => _myDevice?.IsConnected ?? false;
+
+        /// <summary>
         /// Wird ausgelöst wenn ein gültiger RFID-Tag gelesen wurde (nach Duplikat-Prüfung).
         /// Achtung: Event wird auf einem Hintergrund-Thread gefeuert.
         /// </summary>
         public event EventHandler<CardReadEventArgs> CardRead;
+
+        /// <summary>
+        /// Raised when the physical device connection state changes (connected/disconnected).
+        /// Parameter: true = connected, false = disconnected.
+        /// </summary>
+        public event Action<bool>? DeviceConnectionChanged;
 
         /// <summary>
         /// Maximaler Read-Timeout in Millisekunden.
@@ -60,6 +75,7 @@ namespace Hardware.Services
         /// <summary>
         /// Erstellt einen neuen HID Card Reader.
         /// </summary>
+        /// <param name="mappingUuid">ID des Geräte-Mappings.</param>
         /// <param name="logger">Logger für Log-Ausgaben.</param>
         /// <param name="deviceID">HID Device-ID (Teilstring des DevicePath).</param>
         /// <param name="hidProfileId">ID des HID-Profils (Lese-/Beep-Befehle).</param>
@@ -67,11 +83,12 @@ namespace Hardware.Services
         /// <param name="name">Optionaler Anzeigename für Log-Meldungen.</param>
         /// <param name="duplicateTimeoutSeconds">Zeitspanne in Sekunden, in der derselbe Tag ignoriert wird.</param>
         /// <param name="debugMode">Erweiterte Log-Ausgaben aktivieren.</param>
-        public HidCardReader(IHardwareLogger logger, string deviceID, string hidProfileId, int repeatTimeInMs,
+        public HidCardReader(string mappingUuid, IHardwareLogger logger, string deviceID, string hidProfileId, int repeatTimeInMs,
             string name = null, double duplicateTimeoutSeconds = 5, bool debugMode = false)
         {
             ArgumentNullException.ThrowIfNull(logger);
             ArgumentNullException.ThrowIfNull(deviceID);
+            _mappingUuid = mappingUuid;
             _logger = logger;
             _deviceID = deviceID;
             _name = name;
@@ -94,31 +111,17 @@ namespace Hardware.Services
         {
             try
             {
-                var devList = HidDevices.Enumerate();
-                foreach (var item in devList)
-                {
-                    string escapedPattern = Regex.Escape(_deviceID).Replace(Regex.Escape("&8"), "[#&]8");
-                    bool contains = Regex.IsMatch(item.DevicePath, escapedPattern, RegexOptions.IgnoreCase);
-                    if (contains)
-                    {
-                        if (_debugMode)
-                            _logger.Log("USB Reader '" + item.DevicePath + "' found!");
-
-                        _myDevice = item;
-                        break;
-                    }
-                }
+                _myDevice = FindDevice();
 
                 if (_myDevice == null)
                 {
                     _logger.Log("USB Reader '" + _deviceID + "' not found!", HardwareLogLevel.Error);
+                    // Start read loop anyway — it will poll for reconnection
+                    StartReadingAsync();
                     return;
                 }
 
                 _myDevice.OpenDevice();
-                _myDevice.Inserted += _myDevice_Inserted;
-                _myDevice.Removed += _myDevice_Removed;
-                //_myDevice.MonitorDeviceEvents = true;
 
                 if (_debugMode)
                     _logger.Log("USB Reader " + _deviceID + " connected!", HardwareLogLevel.Success);
@@ -131,6 +134,22 @@ namespace Hardware.Services
             }
         }
 
+        private HidDevice FindDevice()
+        {
+            var devList = HidDevices.Enumerate();
+            string escapedPattern = Regex.Escape(_deviceID).Replace(Regex.Escape("&8"), "[#&]8");
+            foreach (var item in devList)
+            {
+                if (Regex.IsMatch(item.DevicePath, escapedPattern, RegexOptions.IgnoreCase))
+                {
+                    if (_debugMode)
+                        _logger.Log("USB Reader '" + item.DevicePath + "' found!");
+                    return item;
+                }
+            }
+            return null;
+        }
+
         #region Async Reading Loop
 
         private void StartReadingAsync()
@@ -138,7 +157,6 @@ namespace Hardware.Services
             StopReading();
 
             _cancellationTokenSource = new CancellationTokenSource();
-            _deviceAttached = true;
 
             Task.Run(() => ReadLoopAsync(_cancellationTokenSource.Token))
                 .ContinueWith(t =>
@@ -147,28 +165,63 @@ namespace Hardware.Services
                         _logger.Log($"ReadLoop fatal error: {t.Exception?.InnerException?.Message}", HardwareLogLevel.Error);
                 }, TaskContinuationOptions.OnlyOnFaulted);
 
-            if (_debugMode)
+            if (_debugMode && _myDevice != null)
                 _logger.Log("USB Reader: " + _myDevice.DevicePath + " wait for card ...");
         }
 
         private async Task ReadLoopAsync(CancellationToken cancellationToken)
         {
-            while (!cancellationToken.IsCancellationRequested && _deviceAttached)
+            bool wasConnected = false;
+
+            while (!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
+                    // Ensure we have a connected device handle.
                     if (_myDevice == null || !_myDevice.IsConnected)
                     {
-                        await Task.Delay(1000, cancellationToken);
-                        continue;
+                        if (wasConnected)
+                        {
+                            wasConnected = false;
+                            _logger.Log($"USB Reader '{_name ?? _deviceID}' disconnected.", HardwareLogLevel.Warning);
+                            DeviceConnectionChanged?.Invoke(false);
+                        }
+
+                        var found = FindDevice();
+                        if (found == null)
+                        {
+                            await Task.Delay(2000, cancellationToken);
+                            continue;
+                        }
+
+                        try { _myDevice?.CloseDevice(); } catch { }
+                        _myDevice = found;
+                        _myDevice.OpenDevice();
+                        _lastRfidTag = string.Empty;
                     }
 
                     bool writeSuccess = _myDevice.Write(_profile.ReadCommandBytes);
-
                     if (!writeSuccess)
                     {
+                        // Treat write-fail as effective disconnect and retry with fresh handle.
+                        if (wasConnected)
+                        {
+                            wasConnected = false;
+                            _logger.Log($"USB Reader '{_name ?? _deviceID}' disconnected.", HardwareLogLevel.Warning);
+                            DeviceConnectionChanged?.Invoke(false);
+                        }
+
+                        try { _myDevice?.CloseDevice(); } catch { }
+                        _myDevice = null;
                         await Task.Delay(500, cancellationToken);
                         continue;
+                    }
+
+                    if (!wasConnected)
+                    {
+                        wasConnected = true;
+                        _logger.Log($"USB Reader '{_name ?? _deviceID}' reconnected.", HardwareLogLevel.Success);
+                        DeviceConnectionChanged?.Invoke(true);
                     }
 
                     HidDeviceData report = await Task.Run(() => _myDevice.Read(ReadTimeoutMs), cancellationToken);
@@ -180,7 +233,7 @@ namespace Hardware.Services
                     }
                     else if (report.Status == HidDeviceData.ReadStatus.WaitTimedOut)
                     {
-                        // Keine Karte vorhanden
+                        // No card present — normal
                     }
                     else
                     {
@@ -247,47 +300,9 @@ namespace Hardware.Services
 
         private void StopReading()
         {
-            _deviceAttached = false;
             _cancellationTokenSource?.Cancel();
             _cancellationTokenSource?.Dispose();
             _cancellationTokenSource = null;
-        }
-
-        #endregion
-
-        #region HID Reader Events
-
-        public void _myDevice_Removed()
-        {
-            _deviceRemoved = true;
-            _deviceAttached = false;
-
-            try
-            {
-                _logger.Log("Card reader disconnected!", HardwareLogLevel.Warning);
-
-                StopReading();
-
-                if (_myDevice != null)
-                    _myDevice.CloseDevice();
-
-                _lastRfidTag = String.Empty;
-            }
-            catch (Exception ex)
-            {
-                _logger.Log("Error on stop rfid reader! " + ex.Message, HardwareLogLevel.Error);
-            }
-        }
-
-        private void _myDevice_Inserted()
-        {
-            if (_deviceRemoved)
-            {
-                _deviceRemoved = false;
-                _logger.Log("Hid card reader connected!", HardwareLogLevel.Success);
-            }
-
-            StartReadingAsync();
         }
 
         #endregion
@@ -312,7 +327,8 @@ namespace Hardware.Services
             if (_disposed) return;
             _disposed = true;
 
-            _myDevice_Removed();
+            StopReading();
+            try { _myDevice?.CloseDevice(); } catch { }
         }
 
         #endregion

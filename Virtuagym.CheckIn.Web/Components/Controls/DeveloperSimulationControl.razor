@@ -7,9 +7,11 @@
 @using Virtuagym.API.Services
 @using Virtuagym.API.Cache.Models
 @using Hardware.Models
+@using AccessPass.Services
 @inject IOptions<AppSettings> SettingsOptions
 @inject WebVirtuagymApiServiceFactory ApiFactory
 @inject WebLogService LogService
+@inject IAccessPassService AccessPassService
 
 <div class="control-panel">
     <h4>Checkin-Simulation</h4>
@@ -176,7 +178,7 @@
 
             var appSettings = SettingsOptions.Value;
             var soundPlayer = new NullSoundPlayer();
-            var handler = new CheckinHandler(simLogger, mapping, null, appSettings, soundPlayer, ApiFactory, cache);
+            var handler = new CheckinHandler(simLogger, mapping, null, appSettings, soundPlayer, ApiFactory, cache, AccessPassService);
             handler.ForceOffline = _forceOffline;
 
             if (_byMemberId)

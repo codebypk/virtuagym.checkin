@@ -51,4 +51,9 @@ public interface IAccessPassService
     /// Saves an avatar image for a pass. Returns the file name.
     /// </summary>
     string SaveAvatar(string passId, byte[] imageBytes, string extension = ".jpg");
+
+    /// <summary>
+    /// Deletes expired or depleted passes according to the configured deletion mode.
+    /// </summary>
+    int DeleteExpiredOrDepletedPasses(AccessPass.Models.AccessPassDeletionMode mode, int days);
 }

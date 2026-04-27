@@ -17,15 +17,10 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using Virtuagym.API;
-using Virtuagym.API.Serialization;
-using Virtuagym.CheckIn.Core.Models;
-using Virtuagym.CheckIn.Core.Helper;
 using Virtuagym.CheckIn.Core.Models;
 using Virtuagym.CheckIn.WPF.Properties;
-using Virtuagym.CheckIn.Core.Models;
 using Virtuagym.CheckIn.Core.Services;
 using Virtuagym.CheckIn.WPF.Services;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 using Brushes = System.Windows.Media.Brushes;
 
 namespace Virtuagym.CheckIn.WPF
@@ -100,6 +95,8 @@ namespace Virtuagym.CheckIn.WPF
 
                 // Standard Auto-Checkout: Deaktiviert
                 cmbAutoCheckoutMinutes.SelectedIndex = 0;
+
+                txtDuplicateTimeoutSeconds.Text = Settings.Default.DuplicateTimeoutSeconds.ToString();
             }
 
             UpdateRelayControlsEnabled();
@@ -648,13 +645,13 @@ namespace Virtuagym.CheckIn.WPF
                         cmbPgConditionGate.SelectedIndex = 0;
                     }
 
-                SetPgStatus(string.Format(L.T("EditMapping_PG_LoadedCount"), _pgGates.Count), Brushes.Gray);
+                SetPgStatus(string.Format(L.T("Common_Pg_LoadedCount"), _pgGates.Count), Brushes.Gray);
             }
             catch (Exception ex)
             {
                 cmbPgGate.ItemsSource = null;
                 cmbPgConditionGate.ItemsSource = null;
-                SetPgStatus(string.Format(L.T("EditMapping_PG_LoadError"), ex.Message), Brushes.Red);
+                SetPgStatus(string.Format(L.T("Common_Pg_LoadError"), ex.Message), Brushes.Red);
             }
         }
 
@@ -1021,7 +1018,7 @@ namespace Virtuagym.CheckIn.WPF
             {
                 try
                 {
-                    return new QrCodeScanner(new NullHardwareLogger(), cameraIndex,
+                    return new QrCodeScanner(Guid.NewGuid().ToString().Replace("-", ""), new NullHardwareLogger(), cameraIndex,
                         name: $"DeviceTest-Camera{cameraIndex}",
                         duplicateTimeoutSeconds: 0,
                         resolutionWidth: resW,
@@ -1305,24 +1302,24 @@ namespace Virtuagym.CheckIn.WPF
                 {
                     OpenCvSharp.VideoCaptureAPIs.ANY => L.T("EditMapping_CameraBackend_ANY"),
                     OpenCvSharp.VideoCaptureAPIs.V4L => "V4L/V4L2 [Linux]",
-                    OpenCvSharp.VideoCaptureAPIs.FIREWIRE => "IEEE 1394 / FireWire [Plattformübergreifend]",
+                    OpenCvSharp.VideoCaptureAPIs.FIREWIRE => $"IEEE 1394 / FireWire [{L.T("EditMapping_VideoBackend_CrossPlatform")}]",
                     OpenCvSharp.VideoCaptureAPIs.DSHOW => "DirectShow (DSHOW) [Windows]",
-                    OpenCvSharp.VideoCaptureAPIs.PVAPI => "PvAPI / Prosilica GigE [Plattformübergreifend]",
-                    OpenCvSharp.VideoCaptureAPIs.OPENNI => "OpenNI [Plattformübergreifend]",
-                    OpenCvSharp.VideoCaptureAPIs.OPENNI_ASUS => "OpenNI ASUS Xtion [Plattformübergreifend]",
+                    OpenCvSharp.VideoCaptureAPIs.PVAPI => $"PvAPI / Prosilica GigE [{L.T("EditMapping_VideoBackend_CrossPlatform")}]",
+                    OpenCvSharp.VideoCaptureAPIs.OPENNI => $"OpenNI [{L.T("EditMapping_VideoBackend_CrossPlatform")}]",
+                    OpenCvSharp.VideoCaptureAPIs.OPENNI_ASUS => $"OpenNI ASUS Xtion [{L.T("EditMapping_VideoBackend_CrossPlatform")}]",
                     OpenCvSharp.VideoCaptureAPIs.ANDROID => "Android MediaNDK [Android]",
-                    OpenCvSharp.VideoCaptureAPIs.XIAPI => "XIMEA Camera API [Plattformübergreifend]",
+                    OpenCvSharp.VideoCaptureAPIs.XIAPI => $"XIMEA Camera API [{L.T("EditMapping_VideoBackend_CrossPlatform")}]",
                     OpenCvSharp.VideoCaptureAPIs.AVFOUNDATION => "AVFoundation [macOS/iOS]",
-                    OpenCvSharp.VideoCaptureAPIs.GIGANETIX => "Smartek Giganetix GigE [Plattformübergreifend]",
+                    OpenCvSharp.VideoCaptureAPIs.GIGANETIX => $"Smartek Giganetix GigE [{L.T("EditMapping_VideoBackend_CrossPlatform")}]",
                     OpenCvSharp.VideoCaptureAPIs.MSMF => "Media Foundation (MSMF) [Windows]",
                     OpenCvSharp.VideoCaptureAPIs.WINRT => "Windows Runtime (WINRT) [Windows]",
-                    OpenCvSharp.VideoCaptureAPIs.INTELPERC => "Intel RealSense (PerC) [Plattformübergreifend]",
-                    OpenCvSharp.VideoCaptureAPIs.OPENNI2 => "OpenNI2 [Plattformübergreifend]",
-                    OpenCvSharp.VideoCaptureAPIs.OPENNI2_ASUS => "OpenNI2 ASUS [Plattformübergreifend]",
+                    OpenCvSharp.VideoCaptureAPIs.INTELPERC => $"Intel RealSense (PerC) [{L.T("EditMapping_VideoBackend_CrossPlatform")}]",
+                    OpenCvSharp.VideoCaptureAPIs.OPENNI2 => $"OpenNI2 [{L.T("EditMapping_VideoBackend_CrossPlatform")}]",
+                    OpenCvSharp.VideoCaptureAPIs.OPENNI2_ASUS => $"OpenNI2 ASUS [{L.T("EditMapping_VideoBackend_CrossPlatform")}]",
                     OpenCvSharp.VideoCaptureAPIs.GPHOTO2 => "gPhoto2 [Linux/macOS]",
-                    OpenCvSharp.VideoCaptureAPIs.GSTREAMER => "GStreamer [Plattformübergreifend]",
-                    OpenCvSharp.VideoCaptureAPIs.FFMPEG => "FFmpeg [Plattformübergreifend]",
-                    OpenCvSharp.VideoCaptureAPIs.IMAGES => "Bildsequenz [Plattformübergreifend]",
+                    OpenCvSharp.VideoCaptureAPIs.GSTREAMER => $"GStreamer [{L.T("EditMapping_VideoBackend_CrossPlatform")}]",
+                    OpenCvSharp.VideoCaptureAPIs.FFMPEG => $"FFmpeg [{L.T("EditMapping_VideoBackend_CrossPlatform")}]",
+                    OpenCvSharp.VideoCaptureAPIs.IMAGES => $"{L.T("EditMapping_VideoBackend_ImageSequence")} [{L.T("EditMapping_VideoBackend_CrossPlatform")}]",
                     OpenCvSharp.VideoCaptureAPIs.ARAVIS => "Aravis GigE [Linux]",
                     OpenCvSharp.VideoCaptureAPIs.INTEL_MFX => "Intel Media SDK [Windows/Linux]",
                     OpenCvSharp.VideoCaptureAPIs.XINE => "Xine [Linux]",

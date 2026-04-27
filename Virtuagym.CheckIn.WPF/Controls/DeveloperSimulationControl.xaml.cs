@@ -11,6 +11,7 @@ using Hardware.Models;
 using Virtuagym.CheckIn.Core.Helper;
 using Virtuagym.CheckIn.Core.Models;
 using Virtuagym.API.Cache.Models;
+using AccessPass.Services;
 
 namespace Virtuagym.CheckIn.WPF.Controls
 {
@@ -149,7 +150,8 @@ namespace Virtuagym.CheckIn.WPF.Controls
                 var appSettings = new WpfAppSettings();
                 var soundPlayer = new WpfSoundPlayer(simLogger);
                 var apiFactory = new WpfVirtuagymApiServiceFactory();
-                var handler = new CheckinHandler(simLogger, mapping, null, appSettings, soundPlayer, apiFactory, cache);
+                var accessPassService = new AccessPassService(new AccessPassStore());
+                var handler = new CheckinHandler(simLogger, mapping, null, appSettings, soundPlayer, apiFactory, cache, accessPassService);
                 handler.ForceOffline = chkForceOffline.IsChecked == true;
 
                 if (byMemberId)

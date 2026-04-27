@@ -1,16 +1,19 @@
 using Hardware.Models;
 using System;
 using System.Collections.Generic;
-using System.Management;
+using System.IO;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+#if WINDOWS
+using System.Management;
+#endif
 
 namespace Hardware.Services
 {
     /// <summary>
-    /// Erkennt angeschlossene Kameras per WMI und cached das Ergebnis.
-    /// Kein OpenCV-Probing – funktioniert auch wenn Kameras bereits belegt sind.
+    /// Discovers connected cameras and caches the result.
+    /// On Windows uses WMI. On Linux uses /dev/video* probing (index-based).
     /// </summary>
     public static class CameraDiscoveryService
     {
@@ -60,11 +63,19 @@ namespace Hardware.Services
 
         private static List<CameraDeviceInfo> DiscoverCameras()
         {
+            if (OperatingSystem.IsWindows())
+                return DiscoverCamerasWindows();
+
+            if (OperatingSystem.IsLinux())
+                return DiscoverCamerasLinux();
+
+            return [];
+        }
+
+#if WINDOWS
+        private static List<CameraDeviceInfo> DiscoverCamerasWindows()
+        {
             var result = new List<CameraDeviceInfo>();
-
-            if (!OperatingSystem.IsWindows())
-                return result;
-
             try
             {
                 using var searcher = new ManagementObjectSearcher(
@@ -86,9 +97,7 @@ namespace Hardware.Services
                     if (!seen.Add(dedupeKey))
                         continue;
 
-                    // True wenn die Kamera gefiltert wurde (IR, Windows Hello, Depth, ToF) – nicht für Video geeignet.
-                    bool excluded = ExcludePattern.IsMatch(name);
-                    if (excluded)
+                    if (ExcludePattern.IsMatch(name))
                         continue;
 
                     result.Add(new CameraDeviceInfo
@@ -103,7 +112,47 @@ namespace Hardware.Services
             }
             catch
             {
-                // WMI nicht verfügbar
+                // WMI not available
+            }
+
+            return result;
+        }
+#else
+        private static List<CameraDeviceInfo> DiscoverCamerasWindows() => [];
+#endif
+
+        private static List<CameraDeviceInfo> DiscoverCamerasLinux()
+        {
+            var result = new List<CameraDeviceInfo>();
+            try
+            {
+                // Basic V4L2 heuristic: /dev/video0..N represent capture devices.
+                var devFiles = Directory.GetFiles("/dev", "video*");
+                Array.Sort(devFiles, StringComparer.OrdinalIgnoreCase);
+
+                foreach (var file in devFiles)
+                {
+                    // Parse numeric suffix as index if possible (video0 -> 0).
+                    var name = Path.GetFileName(file) ?? file;
+                    int index = -1;
+                    if (name.StartsWith("video", StringComparison.OrdinalIgnoreCase))
+                        _ = int.TryParse(name.AsSpan(5), out index);
+
+                    if (index < 0)
+                        continue;
+
+                    result.Add(new CameraDeviceInfo
+                    {
+                        Index = index,
+                        Name = file,
+                        Manufacturer = "",
+                        Status = File.Exists(file) ? "OK" : "Missing"
+                    });
+                }
+            }
+            catch
+            {
+                // /dev not accessible or unsupported
             }
 
             return result;

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -8,6 +10,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Virtuagym.CheckIn.Core.Models;
 using Virtuagym.CheckIn.Core.Helper;
 using Virtuagym.CheckIn.Core.Services;
 using Virtuagym.CheckIn.WPF.Properties;
@@ -31,6 +34,9 @@ namespace Virtuagym.CheckIn.WPF
         private string[] _backgroundImages;
         private int _currentImageIndex = -1;
         private int _screenIndex;
+
+        private readonly ObservableCollection<QrCameraPreviewTile> _qrCameraPreviewTiles = new ObservableCollection<QrCameraPreviewTile>();
+        private readonly Dictionary<string, QrCameraPreviewTile> _qrCameraPreviewByLabel = new Dictionary<string, QrCameraPreviewTile>(StringComparer.OrdinalIgnoreCase);
 
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -68,6 +74,8 @@ namespace Virtuagym.CheckIn.WPF
             ShowIdle();
 
             LoadBackgroundsFromFolder();
+
+            icQrCameraPreviews.ItemsSource = _qrCameraPreviewTiles;
         }
 
         /// <summary>
@@ -337,7 +345,7 @@ namespace Virtuagym.CheckIn.WPF
 
                 string doubleScanText = (clientMessages != null && clientMessages.Length > 0)
                     ? string.Join(Environment.NewLine, clientMessages)
-                    : "Bereits angemeldet";
+                    : L.T("Welcome_DoubleScan_AlreadyCheckedIn");
                 txtCheckinStatus.Text = doubleScanText;
 
                 ShowAvatar(avatarUrl);
@@ -494,6 +502,46 @@ namespace Virtuagym.CheckIn.WPF
             ShowIdle();
         }
 
+        private readonly Dictionary<string, bool> _deviceAvailability = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Updates device availability status and shows/hides the warning panel.
+        /// Called from MainWindow hotplug monitor.
+        /// </summary>
+        public void UpdateDeviceAvailability(string deviceName, string inputType, bool isAvailable)
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(new Action<string, string, bool>(UpdateDeviceAvailability), deviceName, inputType, isAvailable);
+                return;
+            }
+
+            _deviceAvailability[deviceName] = isAvailable;
+            RebuildDeviceWarningPanel();
+        }
+
+        private void RebuildDeviceWarningPanel()
+        {
+            panelDeviceWarnings.Children.Clear();
+            var unavailable = _deviceAvailability.Where(kv => !kv.Value).Select(kv => kv.Key).ToList();
+
+            if (unavailable.Count == 0)
+            {
+                borderDeviceWarning.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            foreach (var name in unavailable)
+            {
+                var sp = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
+                sp.Children.Add(new System.Windows.Controls.TextBlock { Text = "⚠", Foreground = new SolidColorBrush(Color.FromRgb(0xF4, 0x43, 0x36)), FontSize = 16, Margin = new Thickness(0, 0, 8, 0) });
+                sp.Children.Add(new System.Windows.Controls.TextBlock { Text = $"{string.Format(L.T("Welcome_DeviceUnavailable"), name)}", Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xCC, 0xCC)), FontSize = 13 });
+                panelDeviceWarnings.Children.Add(sp);
+            }
+
+            borderDeviceWarning.Visibility = Visibility.Visible;
+        }
+
         /// <summary>
         /// Aktiviert oder deaktiviert die QR-Code-Kamera-Vorschau auf dem Welcome Screen.
         /// Im Debug-Modus ist die Vorschau immer sichtbar.
@@ -507,6 +555,38 @@ namespace Virtuagym.CheckIn.WPF
             }
 
             borderQrCameraPreview.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        /// <summary>
+        /// Initializes the QR camera preview tiles from the configured mappings.
+        /// </summary>
+        public void SetQrCameraMappings(IEnumerable<CheckinClientMapping> mappings)
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(new Action<IEnumerable<CheckinClientMapping>>(SetQrCameraMappings), mappings);
+                return;
+            }
+
+            _qrCameraPreviewTiles.Clear();
+            _qrCameraPreviewByLabel.Clear();
+
+            if (mappings == null)
+                return;
+
+            foreach (var mapping in mappings
+                .Where(m => string.Equals(m.InputType, CheckinClientMapping.InputTypeQrCode, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(m => m.CameraIndex))
+            {
+                var label = !string.IsNullOrWhiteSpace(mapping.Name) ? mapping.Name : string.Format(L.T("Welcome_Camera_FallbackLabel"), mapping.CameraIndex);
+                var tile = new QrCameraPreviewTile
+                {
+                    Label = label,
+                    Status = L.T("Welcome_Camera_WaitingForCamera")
+                };
+                _qrCameraPreviewTiles.Add(tile);
+                _qrCameraPreviewByLabel[label] = tile;
+            }
         }
 
         /// <summary>
@@ -528,6 +608,12 @@ namespace Virtuagym.CheckIn.WPF
                 if (borderQrCameraPreview.Visibility != Visibility.Visible)
                     return;
 
+                if (string.IsNullOrWhiteSpace(mappingName))
+                    return;
+
+                if (!_qrCameraPreviewByLabel.TryGetValue(mappingName, out var tile))
+                    return;
+
                 var bitmapImage = new BitmapImage();
                 using (var ms = new System.IO.MemoryStream(frameData))
                 {
@@ -537,14 +623,43 @@ namespace Virtuagym.CheckIn.WPF
                     bitmapImage.EndInit();
                 }
                 bitmapImage.Freeze();
-                imgQrCameraPreview.Source = bitmapImage;
-
-                if (!string.IsNullOrWhiteSpace(mappingName))
-                    txtQrCameraName.Text = mappingName;
+                tile.PreviewImage = bitmapImage;
+                tile.Status = "Vorschau aktiv";
             }
             catch (Exception ex)
             {
                 Trace.WriteLine($"UpdateQrCameraPreview Fehler: {ex.Message}");
+            }
+        }
+
+        private sealed class QrCameraPreviewTile : System.ComponentModel.INotifyPropertyChanged
+        {
+            private string _label = "";
+            private ImageSource _previewImage;
+            private string _status = "";
+
+            public string Label
+            {
+                get => _label;
+                set { _label = value; OnPropertyChanged(nameof(Label)); }
+            }
+
+            public ImageSource PreviewImage
+            {
+                get => _previewImage;
+                set { _previewImage = value; OnPropertyChanged(nameof(PreviewImage)); }
+            }
+
+            public string Status
+            {
+                get => _status;
+                set { _status = value; OnPropertyChanged(nameof(Status)); }
+            }
+
+            public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
+            private void OnPropertyChanged(string propertyName)
+            {
+                PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(propertyName));
             }
         }
 

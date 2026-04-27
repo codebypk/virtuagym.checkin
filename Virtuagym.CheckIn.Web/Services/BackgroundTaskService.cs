@@ -18,8 +18,14 @@ namespace Virtuagym.CheckIn.Web.Services;
 ///   <item>Auto-checkout scheduler</item>
 /// </list>
 /// </summary>
+using AccessPass.Services;
+
 public sealed class BackgroundTaskService : IHostedService, IDisposable
 {
+    private Timer? _accessPassCleanupTimer;
+    private readonly IAccessPassService _accessPassService;
+    private readonly TimeSpan _cleanupInterval = TimeSpan.FromHours(24); // Standard: 24h
+
     private readonly IOptionsMonitor<AppSettings> _optionsMonitor;
     private readonly WebLogService _log;
     private readonly WebVirtuagymApiServiceFactory _apiFactory;
@@ -30,11 +36,14 @@ public sealed class BackgroundTaskService : IHostedService, IDisposable
     public BackgroundTaskService(
         IOptionsMonitor<AppSettings> optionsMonitor,
         WebLogService log,
-        WebVirtuagymApiServiceFactory apiFactory)
+        WebVirtuagymApiServiceFactory apiFactory,
+        IAccessPassService accessPassService)
     {
         _optionsMonitor = optionsMonitor;
         _log = log;
         _apiFactory = apiFactory;
+        _accessPassService = accessPassService;
+        _optionsMonitor.OnChange(StartOrStopAccessPassCleanup);
     }
 
     private AppSettings Settings => _optionsMonitor.CurrentValue;
@@ -42,6 +51,7 @@ public sealed class BackgroundTaskService : IHostedService, IDisposable
     public Task StartAsync(CancellationToken cancellationToken)
     {
         var settings = Settings;
+        StartOrStopAccessPassCleanup(settings);
 
         // --- Global defaults (same as WPF MainWindow constructor) ---
         CheckinClientMapping.GlobalDefaultDoubleScanThresholdMs = settings.DefaultDoubleScanThresholdMs;
@@ -149,6 +159,7 @@ public sealed class BackgroundTaskService : IHostedService, IDisposable
     public void Reload()
     {
         _log.WriteToLog("BackgroundTaskService wird neu geladen...", Constants.LogInfo);
+        StartOrStopAccessPassCleanup(Settings);
 
         // Stop existing schedulers
         _cacheSyncScheduler?.Stop();
@@ -251,6 +262,37 @@ public sealed class BackgroundTaskService : IHostedService, IDisposable
     {
         _cacheSyncScheduler?.Dispose();
         _memberCache?.Dispose();
+        _accessPassCleanupTimer?.Dispose();
+    }
+
+    private void StartOrStopAccessPassCleanup(AppSettings settings)
+    {
+        _accessPassCleanupTimer?.Dispose();
+        _accessPassCleanupTimer = null;
+        if (settings.AccessPassDeletionMode == AccessPass.Models.AccessPassDeletionMode.AfterXDays && settings.AccessPassDeletionDays > 0)
+        {
+            _accessPassCleanupTimer = new Timer(_ => RunAccessPassCleanup(), null, TimeSpan.Zero, _cleanupInterval);
+            _log.WriteToLog($"Access Pass Autodelete aktiviert (alle {_cleanupInterval.TotalHours}h, nach {settings.AccessPassDeletionDays} Tagen).", Constants.LogInfo);
+        }
+        else
+        {
+            _log.WriteToLog("Access Pass Autodelete-Timer gestoppt (Modus nicht 'Nach X Tagen').", Constants.LogInfo);
+        }
+    }
+
+    private void RunAccessPassCleanup()
+    {
+        try
+        {
+            var settings = Settings;
+            int deleted = _accessPassService.DeleteExpiredOrDepletedPasses(settings.AccessPassDeletionMode, settings.AccessPassDeletionDays);
+            if (deleted > 0)
+                _log.WriteToLog($"Access Pass Autodelete: {deleted} Pass(e) gelöscht.", Constants.LogInfo);
+        }
+        catch (Exception ex)
+        {
+            _log.WriteToLog($"Access Pass Autodelete Fehler: {ex.Message}", Constants.LogWarning);
+        }
     }
 
     private static List<CheckinClientMapping>? LoadMappings(AppSettings settings)

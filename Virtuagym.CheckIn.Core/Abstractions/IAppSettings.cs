@@ -49,4 +49,8 @@ public interface IAppSettings
     string ApiMsgDoubleScanBlocked { get; }
     string ApiMsgInsufficientCredits { get; }
     string ApiMsgMemberNotActive { get; }
+
+    // --- Access Pass Deletion ---
+    AccessPass.Models.AccessPassDeletionMode AccessPassDeletionMode { get; }
+    int AccessPassDeletionDays { get; }
 }

@@ -9,7 +9,8 @@ public interface IWelcomeDisplay
     /// <summary>
     /// Shows a loading indicator while a check-in is being processed.
     /// </summary>
-    void ShowLoader();
+    /// <param name="readerName">Name of the input device that triggered the loader.</param>
+    void ShowLoader(string? readerName = null);
 
     /// <summary>
     /// Displays the check-in result (success, warning, reject, double-scan).

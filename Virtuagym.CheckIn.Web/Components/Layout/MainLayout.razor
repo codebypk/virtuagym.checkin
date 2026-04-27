@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
 @using Microsoft.Extensions.Options
+@using Microsoft.JSInterop
 @using Virtuagym.CheckIn.Web.Models
 @using Virtuagym.CheckIn.Core.Models
 
@@ -48,6 +49,7 @@
 @code {
     [Inject] private NavigationManager Navigation { get; set; } = default!;
     [Inject] private IOptions<AppSettings> SettingsOptions { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     private bool _dropdownOpen;
     private string[] _deviceNames = [];
@@ -89,18 +91,15 @@
             _selectedDevices.Add(name);
     }
 
-    private void NavigateToSelected()
+    private async Task NavigateToSelected()
     {
         _dropdownOpen = false;
-        if (_selectedDevices.Count == 0)
-        {
-            Navigation.NavigateTo("/welcome");
-        }
-        else
-        {
-            var param = string.Join(",", _selectedDevices.Select(Uri.EscapeDataString));
-            Navigation.NavigateTo($"/welcome?device={param}");
-        }
+        var targetUrl = _selectedDevices.Count == 0
+            ? "/welcome"
+            : $"/welcome?device={string.Join(",", _selectedDevices.Select(Uri.EscapeDataString))}";
+
+        await JS.InvokeVoidAsync("open", targetUrl, "_blank");
+        _selectedDevices.Clear();
     }
 
     private void ClearAndClose()

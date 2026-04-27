@@ -1,5 +1,7 @@
 @page "/welcome"
 @using Microsoft.Extensions.Options
+@using Virtuagym.API.Serialization
+@using Virtuagym.CheckIn.Core.Models
 @using Virtuagym.CheckIn.Web.Models
 @using Virtuagym.CheckIn.Web.Services
 @using Virtuagym.CheckIn.Core.Abstractions
@@ -8,9 +10,16 @@
 @inject WebCheckinService CheckinService
 @inject ISoundPlayer SoundPlayer
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @implements IDisposable
 
 <div class="welcome-screen" @onclick="RequestFullscreen">
+    @if (_soundBlocked)
+    {
+        <button id="btn-enable-sound" class="sound-enable-btn" @onclick="EnableSound" style="position:fixed;top:20px;left:20px;z-index:100;padding:10px 20px;background:#F44336;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;">
+            @Virtuagym.CheckIn.Core.Services.L.T("Welcome_Btn_EnableSound")
+        </button>
+    }
     @if (!string.IsNullOrEmpty(_backgroundUrl))
     {
         <div class="welcome-background" style="background-image: url('@_backgroundUrl');"></div>
@@ -23,7 +32,7 @@
 
     @if (_showLoader)
     {
-        <div class="welcome-loader">
+        <div id="welcome-loader-box" class="welcome-loader">
             <p>@Virtuagym.CheckIn.Core.Services.L.T("Welcome_PleaseWait")</p>
             <div class="progress-bar"></div>
         </div>
@@ -31,7 +40,7 @@
 
     @if (_showCheckinInfo)
     {
-        <div class="checkin-info checkin-info-right @_statusCssClass">
+        <div id="checkin-info-box" class="checkin-info checkin-info-right @_statusCssClass">
             <div class="avatar-container">
                 <div class="avatar-wrapper">
                     @if (!string.IsNullOrEmpty(_avatarUrl))
@@ -89,34 +98,61 @@
         </div>
     }
 
-    @if (_settings.ShowQrCameraPreviewOnWelcome)
+    @{
+        var unavailableDevices = _deviceAvailability
+            .Where(kv => !kv.Value && MatchesDeviceFilter(kv.Key))
+            .Select(kv => kv.Key)
+            .ToList();
+    }
+    @if (unavailableDevices.Count > 0)
     {
-        <div class="qr-camera-preview">
+        <div class="device-unavailable-warning" style="position:fixed;top:20px;right:20px;z-index:100;background:#555;border:2px solid #F44336;border-radius:12px;padding:12px 20px;max-width:400px;">
+            @foreach (var name in unavailableDevices)
+            {
+                <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+                    <span style="color:#F44336;font-size:18px;">⚠</span>
+                    <span style="color:#FFCCCC;font-size:13px;">@string.Format(@Virtuagym.CheckIn.Core.Services.L.T("Welcome_DeviceUnavailable"), name)</span>
+                </div>
+            }
+        </div>
+    }
+
+    @if (_settings.ShowQrCameraPreviewOnWelcome && _visibleQrCameraMappings.Count > 0)
+    {
+        <div class="qr-camera-preview" style="width:auto;max-width:calc(100vw - 40px);">
             <div class="qr-camera-header">
                 <span class="qr-icon">⊞</span>
-                <span>QR-Code Scanner</span>
+                <span>@Virtuagym.CheckIn.Core.Services.L.T("Welcome_QrScannerTitle")</span>
             </div>
-            @if (!string.IsNullOrEmpty(_cameraName))
-            {
-                <div style="color:rgba(255,255,255,0.67);font-size:10px;padding:0 4px 4px;">
-                    @_cameraName
-                </div>
-            }
-            @if (!string.IsNullOrEmpty(_cameraPreviewBase64))
-            {
-                <div style="position:relative;">
-                    <img src="data:image/jpeg;base64,@_cameraPreviewBase64" alt="Kamera-Vorschau"
-                         style="width:210px;height:150px;object-fit:cover;border-radius:6px;border:1px solid #555;display:block;" />
-                    <div class="qr-scan-overlay"></div>
-                </div>
-            }
-            else
-            {
-                <div class="qr-camera-placeholder">
-                    <span>📷</span>
-                </div>
-            }
-            <p class="qr-camera-status">@_cameraStatus</p>
+
+            <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;">
+                @foreach (var mapping in _visibleQrCameraMappings)
+                {
+                    var label = GetCameraLabel(mapping);
+                    <div style="min-width:230px;">
+                        <div style="color:rgba(255,255,255,0.67);font-size:10px;padding:0 4px 4px;">
+                            @label
+                        </div>
+
+                        @if (_cameraPreviews.TryGetValue(label, out var previewBase64) && !string.IsNullOrWhiteSpace(previewBase64))
+                        {
+                            <div style="position:relative;">
+                                <img src="data:image/jpeg;base64,@previewBase64" alt="@Virtuagym.CheckIn.Core.Services.L.T("Welcome_Camera_PreviewAlt")"
+                                     style="width:210px;height:150px;object-fit:cover;border-radius:6px;border:1px solid #555;display:block;" />
+                                <div class="qr-scan-overlay"></div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="qr-camera-placeholder">
+                                <span>📷</span>
+                            </div>
+                        }
+
+                        <p class="qr-camera-status">@GetCameraStatus(label)</p>
+                    </div>
+                }
+            </div>
         </div>
     }
 </div>
@@ -137,11 +173,16 @@
     private string _idleHintText = "";
     private string _readerName = "";
     private System.Timers.Timer? _idleTimer;
+    private bool _disposed;
+    private bool _soundBlocked;
 
-    // Camera preview (frames from HardwareScannerService via WebCheckinService)
-    private string _cameraPreviewBase64 = "";
-    private string _cameraName = "";
-    private string _cameraStatus = "Warte auf Kamera...";
+    // Camera previews
+    private readonly Dictionary<string, string> _cameraPreviews = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _cameraStatuses = new(StringComparer.OrdinalIgnoreCase);
+    // Device availability tracking
+    private readonly Dictionary<string, bool> _deviceAvailability = new(StringComparer.OrdinalIgnoreCase);
+    private List<CheckinClientMapping> _qrCameraMappings = [];
+    private List<CheckinClientMapping> _visibleQrCameraMappings = [];
 
     protected override void OnInitialized()
     {
@@ -149,30 +190,139 @@
         _idleHintText = _settings.IdleHintRfidAndQrCode;
         _backgroundUrl = "images/backgrounds/background.png";
 
+        _qrCameraMappings = LoadQrCameraMappings(_settings);
+        _visibleQrCameraMappings = ApplyDeviceFilter(_qrCameraMappings);
+
+        foreach (var mapping in _visibleQrCameraMappings)
+        {
+            var label = GetCameraLabel(mapping);
+            if (!_cameraStatuses.ContainsKey(label))
+                _cameraStatuses[label] = Virtuagym.CheckIn.Core.Services.L.T("Welcome_Camera_WaitingForCamera");
+        }
+
         CheckinService.OnCheckinResult += HandleCheckinResult;
         CheckinService.OnShowLoader += HandleShowLoader;
+        CheckinService.OnDeviceAvailabilityChanged += HandleDeviceAvailabilityChanged;
+
+        foreach (var availability in CheckinService.GetDeviceAvailabilitySnapshot())
+        {
+            if (!string.IsNullOrWhiteSpace(availability.DeviceName))
+                _deviceAvailability[availability.DeviceName] = availability.IsAvailable;
+        }
 
         if (_settings.ShowQrCameraPreviewOnWelcome)
             CheckinService.OnCameraPreview += HandleCameraPreview;
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        try
+        {
+            _soundBlocked = await JS.InvokeAsync<bool>("isSoundBlocked");
+        }
+        catch (JSException)
+        {
+            _soundBlocked = true;
+        }
+        if (_soundBlocked)
+            StateHasChanged();
+    }
+
+    private async Task EnableSound()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("enableSound");
+        }
+        catch (JSException)
+        {
+            // Script not yet loaded – ignore; button remains visible.
+            return;
+        }
+        _soundBlocked = false;
+    }
+
+    private readonly Dictionary<string, DateTime> _lastPreviewUpdate = new();
+
     private async void HandleCameraPreview(CameraPreviewInfo info)
     {
-        if (!MatchesDeviceFilter(info.CameraLabel))
+        if (_disposed || !MatchesDeviceFilter(info.CameraLabel))
             return;
+
+        var label = info.CameraLabel ?? "";
+        if (string.IsNullOrWhiteSpace(label))
+            return;
+
+        // Throttle: max 1 update per 200ms per camera (5 FPS)
+        var now = DateTime.UtcNow;
+        if (_lastPreviewUpdate.TryGetValue(label, out var last) && (now - last).TotalMilliseconds < 200)
+            return;
+        _lastPreviewUpdate[label] = now;
 
         try
         {
             var base64 = Convert.ToBase64String(info.FrameData);
             await InvokeAsync(() =>
             {
-                _cameraPreviewBase64 = base64;
-                _cameraName = info.CameraLabel;
-                _cameraStatus = "Vorschau aktiv";
+                _cameraPreviews[label] = base64;
+                _cameraStatuses[label] = Virtuagym.CheckIn.Core.Services.L.T("Welcome_Camera_PreviewActive");
                 StateHasChanged();
             });
         }
         catch { /* Component may be disposed */ }
+    }
+
+    private static List<CheckinClientMapping> LoadQrCameraMappings(AppSettings settings)
+    {
+        try
+        {
+            var json = settings.CheckinClientMappings;
+            if (string.IsNullOrWhiteSpace(json))
+                return [];
+
+            var serializer = new JsonSerializerAdapter();
+            var mappings = serializer.Deserialize<List<CheckinClientMapping>>(json);
+            return mappings?
+                .Where(m => string.Equals(m.InputType, CheckinClientMapping.InputTypeQrCode, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(m => m.CameraIndex)
+                .ToList() ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    private static string GetCameraLabel(CheckinClientMapping mapping)
+    {
+        if (!string.IsNullOrWhiteSpace(mapping.Name))
+            return mapping.Name;
+        return string.Format(Virtuagym.CheckIn.Core.Services.L.T("Welcome_Camera_FallbackLabel"), mapping.CameraIndex);
+    }
+
+    private string GetCameraStatus(string label)
+    {
+        if (_cameraStatuses.TryGetValue(label, out var status) && !string.IsNullOrWhiteSpace(status))
+            return status;
+        return Virtuagym.CheckIn.Core.Services.L.T("Welcome_Camera_WaitingForCamera");
+    }
+
+    private List<CheckinClientMapping> ApplyDeviceFilter(List<CheckinClientMapping> mappings)
+    {
+        if (mappings is not { Count: > 0 })
+            return [];
+
+        // If no device filter is specified, show all QR camera previews.
+        if (string.IsNullOrWhiteSpace(DeviceFilter))
+            return mappings;
+
+        // If a device filter is specified, show only QR mappings whose label matches the filter.
+        return mappings
+            .Where(m => MatchesDeviceFilter(GetCameraLabel(m)))
+            .ToList();
     }
 
     private bool MatchesDeviceFilter(string? readerName)
@@ -187,22 +337,31 @@
         return filters.Any(f => readerName.Contains(f, StringComparison.OrdinalIgnoreCase));
     }
 
-    private async void HandleShowLoader()
+    private async void HandleShowLoader(string? readerName)
     {
-        await InvokeAsync(() =>
+        if (_disposed || !MatchesDeviceFilter(readerName))
+            return;
+
+        try
         {
-            _showLoader = true;
-            _showCheckinInfo = false;
-            StateHasChanged();
-        });
+            await InvokeAsync(() =>
+            {
+                _showLoader = true;
+                _showCheckinInfo = false;
+                StateHasChanged();
+            });
+        }
+        catch { /* Component may be disposed */ }
     }
 
     private async void HandleCheckinResult(CheckinResultInfo info)
     {
-        if (!MatchesDeviceFilter(info.ReaderName))
+        if (_disposed || !MatchesDeviceFilter(info.ReaderName))
             return;
 
-        await InvokeAsync(() =>
+        try
+        {
+            await InvokeAsync(() =>
         {
             _showLoader = false;
             _showCheckinInfo = true;
@@ -237,6 +396,8 @@
             };
             _idleTimer.Start();
         });
+        }
+        catch { /* Component may be disposed */ }
     }
 
     private void RequestFullscreen()
@@ -244,11 +405,29 @@
         // Fullscreen can be triggered via JS interop if needed
     }
 
+    private async void HandleDeviceAvailabilityChanged(DeviceAvailabilityInfo info)
+    {
+        if (_disposed || !MatchesDeviceFilter(info.DeviceName))
+            return;
+
+        try
+        {
+            await InvokeAsync(() =>
+            {
+                _deviceAvailability[info.DeviceName] = info.IsAvailable;
+                StateHasChanged();
+            });
+        }
+        catch { /* Component may be disposed */ }
+    }
+
     public void Dispose()
     {
+        _disposed = true;
         CheckinService.OnCheckinResult -= HandleCheckinResult;
         CheckinService.OnShowLoader -= HandleShowLoader;
         CheckinService.OnCameraPreview -= HandleCameraPreview;
+        CheckinService.OnDeviceAvailabilityChanged -= HandleDeviceAvailabilityChanged;
         _idleTimer?.Dispose();
     }
 }

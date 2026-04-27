@@ -17,6 +17,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="200"/>
@@ -49,6 +50,10 @@
                     <TextBlock x:Name="lblShowQrCameraPreview" Grid.Row="4" Grid.Column="0" Text="QR-Kamera-Vorschau:" VerticalAlignment="Center" Margin="0,5"/>
                     <CheckBox x:Name="chkShowQrCameraPreview" Grid.Row="4" Grid.Column="1" VerticalAlignment="Center" Margin="0,5"
                               ToolTip="Zeigt eine Kamera-Vorschau auf dem Welcome Screen an, wenn ein QR-Code-Reader aktiv ist. Im Debug-Modus immer sichtbar."/>
+
+                    <TextBlock x:Name="lblDeviceHotplugPollInterval" Grid.Row="5" Grid.Column="0" Text="Hotplug Polling (s):" VerticalAlignment="Center" Margin="0,5"/>
+                    <TextBox x:Name="txtDeviceHotplugPollIntervalSeconds" Grid.Row="5" Grid.Column="1" Width="120" HorizontalAlignment="Left" Margin="0,5"
+                             ToolTip="Intervall in Sekunden für automatische Geräte-Erkennung. 0 = deaktiviert."/>
                 </Grid>
             </GroupBox>
 

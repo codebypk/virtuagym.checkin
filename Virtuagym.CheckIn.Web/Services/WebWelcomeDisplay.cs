@@ -11,7 +11,7 @@ public sealed class WebWelcomeDisplay(WebCheckinService checkinService) : IWelco
     /// <summary>The sound path collected by the last <see cref="ShowCheckinResult"/> call.</summary>
     public string? LastSoundPath { get; set; }
 
-    public void ShowLoader() => checkinService.RaiseShowLoader();
+    public void ShowLoader(string? readerName = null) => checkinService.RaiseShowLoader(readerName);
 
     public void ShowCheckinResult(string status, string name, string? avatarUrl, string[] clientMessages, string? readerName = null)
     {

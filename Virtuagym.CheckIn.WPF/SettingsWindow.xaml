@@ -71,8 +71,22 @@
             </TabItem>
 
             <!-- Tab 2: Access Pass -->
-            <TabItem x:Name="tabAccessPass" Header="Access Pass">
-                <controls:AccessPassControl x:Name="accessPassControl"/>
+            <TabItem x:Name="tabAccessPass" Header="Access Pass" Height="20" VerticalAlignment="Top">
+                <StackPanel Margin="10,10,10,0" Orientation="Vertical">
+                    <TextBlock Text="Automatische Löschung von Access Passes" FontWeight="Bold" Margin="0,0,0,6"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <TextBlock Text="Wann sollen abgelaufene oder aufgebrauchte Access Passes gelöscht werden?" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="cmbAccessPassDeletionMode" Width="220" SelectionChanged="cmbAccessPassDeletionMode_SelectionChanged">
+                            <ComboBoxItem Content="Sofort nach Ablauf/Aufbrauch" Tag="0"/>
+                            <ComboBoxItem Content="Nach X Tagen" Tag="1"/>
+                        </ComboBox>
+                        <StackPanel x:Name="panelAccessPassDeletionDays" Orientation="Horizontal" Margin="12,0,0,0" Visibility="Collapsed">
+                            <TextBlock Text="Tage bis zur Löschung:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBox x:Name="txtAccessPassDeletionDays" Width="60"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <controls:AccessPassControl x:Name="accessPassControl"/>
+                </StackPanel>
             </TabItem>
 
             <!-- Tab 3: Jablotron Client -->

@@ -24,6 +24,16 @@ public sealed class CameraPreviewInfo
 }
 
 /// <summary>
+/// Contains device availability information for the Welcome page.
+/// </summary>
+public sealed class DeviceAvailabilityInfo
+{
+    public string DeviceName { get; init; } = "";
+    public string InputType { get; init; } = "";
+    public bool IsAvailable { get; init; }
+}
+
+/// <summary>
 /// Server-side check-in service that coordinates hardware events with the web UI.
 /// Raises events consumed by the Welcome page and Log page.
 /// </summary>
@@ -31,11 +41,14 @@ public sealed class WebCheckinService
 {
     private readonly WebLogService _logService;
     private readonly WebVirtuagymApiServiceFactory _apiFactory;
+    private readonly object _deviceAvailabilityLock = new();
+    private readonly Dictionary<string, DeviceAvailabilityInfo> _deviceAvailability = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Raised to show the loading indicator on the Welcome page.
+    /// Parameter: ReaderName of the device that triggered the loader.
     /// </summary>
-    public event Action? OnShowLoader;
+    public event Action<string?>? OnShowLoader;
 
     /// <summary>
     /// Raised when a check-in result is available to display on the Welcome page.
@@ -47,6 +60,11 @@ public sealed class WebCheckinService
     /// </summary>
     public event Action<CameraPreviewInfo>? OnCameraPreview;
 
+    /// <summary>
+    /// Raised when device availability changes (hotplug).
+    /// </summary>
+    public event Action<DeviceAvailabilityInfo>? OnDeviceAvailabilityChanged;
+
     public WebCheckinService(WebLogService logService, WebVirtuagymApiServiceFactory apiFactory)
     {
         _logService = logService;
@@ -54,7 +72,7 @@ public sealed class WebCheckinService
     }
 
     /// <summary>Raises <see cref="OnShowLoader"/>.</summary>
-    public void RaiseShowLoader() => OnShowLoader?.Invoke();
+    public void RaiseShowLoader(string? readerName = null) => OnShowLoader?.Invoke(readerName);
 
     /// <summary>Raises <see cref="OnCheckinResult"/>.</summary>
     public void RaiseCheckinResult(CheckinResultInfo info) => OnCheckinResult?.Invoke(info);
@@ -62,12 +80,35 @@ public sealed class WebCheckinService
     /// <summary>Raises <see cref="OnCameraPreview"/>.</summary>
     public void RaiseCameraPreview(CameraPreviewInfo info) => OnCameraPreview?.Invoke(info);
 
+    /// <summary>Raises <see cref="OnDeviceAvailabilityChanged"/>.</summary>
+    public void RaiseDeviceAvailabilityChanged(DeviceAvailabilityInfo info)
+    {
+        if (!string.IsNullOrWhiteSpace(info.DeviceName))
+        {
+            lock (_deviceAvailabilityLock)
+            {
+                _deviceAvailability[info.DeviceName] = info;
+            }
+        }
+
+        OnDeviceAvailabilityChanged?.Invoke(info);
+    }
+
+    /// <summary>Returns the current device availability snapshot.</summary>
+    public IReadOnlyList<DeviceAvailabilityInfo> GetDeviceAvailabilitySnapshot()
+    {
+        lock (_deviceAvailabilityLock)
+        {
+            return _deviceAvailability.Values.ToList();
+        }
+    }
+
     /// <summary>
     /// Simulates a check-in for testing/developer purposes.
     /// </summary>
     public async Task SimulateCheckinAsync(string input)
     {
-        OnShowLoader?.Invoke();
+        OnShowLoader?.Invoke(null);
 
         _logService.WriteToLog($"Simulation check-in: {input}", Virtuagym.CheckIn.Core.Helper.Constants.LogInfo);
 

@@ -17,7 +17,7 @@ public class AccessPassQrService
     /// <param name="secret">Encryption secret (club secret).</param>
     /// <param name="validHours">How many hours the QR token stays valid. 0 = no expiration.</param>
     /// <returns>The encrypted token string, or null if encryption failed.</returns>
-    public string? GenerateToken(AccessPassEntry entry, string secret, int validHours = 720)
+    public string? GenerateToken(AccessPassEntry entry, string secret)
     {
         if (entry == null || string.IsNullOrWhiteSpace(secret))
             return null;
@@ -30,9 +30,8 @@ public class AccessPassQrService
         {
             pass_id = entry.Id,
             card_id = entry.CardId,
-            valid_until = validHours > 0
-                ? DateTime.UtcNow.AddHours(validHours).ToString("o")
-                : ""
+            valid_until = entry.IsUnlimited ? "" : entry.ValidUntil
+
         };
 
         return crypto.TryEncrypt(payload, out var token, out _) ? token : null;
@@ -59,9 +58,9 @@ public class AccessPassQrService
     /// <summary>
     /// Convenience: generates the encrypted token AND the QR image in one call.
     /// </summary>
-    public (string? Token, string? QrDataUri) GenerateTokenAndQr(AccessPassEntry entry, string secret, int validHours = 720, int pixelsPerModule = 10)
+    public (string? Token, string? QrDataUri) GenerateTokenAndQr(AccessPassEntry entry, string secret,  int pixelsPerModule = 10)
     {
-        var token = GenerateToken(entry, secret, validHours);
+        var token = GenerateToken(entry, secret);
         if (token == null)
             return (null, null);
 

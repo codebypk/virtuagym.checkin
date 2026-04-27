@@ -1,5 +1,6 @@
 @page "/"
 @using Virtuagym.CheckIn.Web.Services
+@using Virtuagym.CheckIn.Core.Helper
 @inject WebLogService LogService
 @implements IDisposable
 
@@ -16,6 +17,8 @@
 
 @code {
     private List<LogEntry> _logEntries = new();
+    private bool _disposed;
+    private bool _pendingUpdate;
 
     protected override void OnInitialized()
     {
@@ -25,17 +28,38 @@
 
     private async void HandleLogEntry(LogEntry entry)
     {
-        await InvokeAsync(() =>
+        if (_disposed) return;
+
+        // Batch: buffer the entry and coalesce UI updates
+        lock (_logEntries)
         {
             _logEntries.Add(entry);
-            if (_logEntries.Count > 50)
+            while (_logEntries.Count > Constants.MaxLogEntries)
                 _logEntries.RemoveAt(0);
-            StateHasChanged();
-        });
+
+            if (_pendingUpdate)
+                return;
+            _pendingUpdate = true;
+        }
+
+        // Debounce: wait briefly to batch rapid log bursts
+        await Task.Delay(100);
+        if (_disposed) return;
+
+        try
+        {
+            await InvokeAsync(() =>
+            {
+                _pendingUpdate = false;
+                StateHasChanged();
+            });
+        }
+        catch { _pendingUpdate = false; }
     }
 
     public void Dispose()
     {
+        _disposed = true;
         LogService.OnLogEntry -= HandleLogEntry;
     }
 }

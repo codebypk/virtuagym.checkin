@@ -10,6 +10,7 @@ using System.Windows.Media.Imaging;
 using AccessPass.Models;
 using AccessPass.Services;
 using Hardware.Services;
+using Virtuagym.CheckIn.Core.Services;
 using Virtuagym.CheckIn.WPF.Properties;
 
 namespace Virtuagym.CheckIn.WPF.Controls
@@ -17,9 +18,10 @@ namespace Virtuagym.CheckIn.WPF.Controls
     public partial class AccessPassControl : UserControl
     {
         private ObservableCollection<AccessPassEntry> _passes = [];
-        private readonly AccessPassStore _store = new();
-        private readonly AccessPassService _service;
+        private AccessPassStore _store;
+        private IAccessPassService _service;
         private readonly AccessPassQrService _qrService = new();
+        private readonly Services.WpfAppSettings _settings = new();
         private List<CcidSmartCardReader> _ccidReaders = [];
         private List<HidCardReader> _hidReaders = [];
 
@@ -31,8 +33,16 @@ namespace Virtuagym.CheckIn.WPF.Controls
 
         public AccessPassControl()
         {
+            _store = new AccessPassStore();
             _service = new AccessPassService(_store);
             InitializeComponent();
+            _service.DeleteExpiredOrDepletedPasses(_settings.AccessPassDeletionMode, _settings.AccessPassDeletionDays); // Run cleanup at startup
+        }
+
+        public void SetAccessPassDependencies(AccessPassStore store, IAccessPassService service)
+        {
+            _store = store;
+            _service = service;
         }
 
         public void ApplyLocalization()
@@ -53,7 +63,7 @@ namespace Virtuagym.CheckIn.WPF.Controls
                 .ToList();
             _passes = new ObservableCollection<AccessPassEntry>(all);
             dataGridAccessPasses.ItemsSource = _passes;
-            txtStatus.Text = $"{_passes.Count} Pass(e) gesamt";
+            txtStatus.Text = string.Format(L.T("AccessPass_Status_Total"), _passes.Count);
             txtStatus.Foreground = Brushes.Gray;
         }
 
@@ -77,9 +87,13 @@ namespace Virtuagym.CheckIn.WPF.Controls
             {
                 _service.Create(dialog.ResultEntry);
                 if (dialog.PhotoBytes != null)
-                    _service.SaveAvatar(dialog.ResultEntry.Id, dialog.PhotoBytes);
+                {
+                    var fileName = _service.SaveAvatar(dialog.ResultEntry.Id, dialog.PhotoBytes);
+                    dialog.ResultEntry.PhotoFileName = fileName;
+                    _service.Update(dialog.ResultEntry);
+                }
                 Refresh();
-                txtStatus.Text = $"Pass '{dialog.ResultEntry.DisplayName}' erstellt.";
+                txtStatus.Text = string.Format(L.T("AccessPass_Msg_Created"), dialog.ResultEntry.DisplayName);
                 txtStatus.Foreground = Brushes.Green;
             }
         }
@@ -89,7 +103,7 @@ namespace Virtuagym.CheckIn.WPF.Controls
             var selected = dataGridAccessPasses.SelectedItem as AccessPassEntry;
             if (selected == null)
             {
-                MessageBox.Show("Bitte wählen Sie einen Pass aus.", "Hinweis",
+                MessageBox.Show(L.T("AccessPass_Msg_SelectPass"), L.T("Msg_Note"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -126,11 +140,13 @@ namespace Virtuagym.CheckIn.WPF.Controls
                 }
                 else if (dialog.PhotoBytes != null)
                 {
-                    _service.SaveAvatar(dialog.ResultEntry.Id, dialog.PhotoBytes);
+                    var fileName = _service.SaveAvatar(dialog.ResultEntry.Id, dialog.PhotoBytes);
+                    dialog.ResultEntry.PhotoFileName = fileName;
                 }
+
                 _service.Update(dialog.ResultEntry);
                 Refresh();
-                txtStatus.Text = $"Pass '{dialog.ResultEntry.DisplayName}' aktualisiert.";
+                txtStatus.Text = string.Format(L.T("AccessPass_Msg_Updated"), dialog.ResultEntry.DisplayName);
                 txtStatus.Foreground = Brushes.Green;
             }
         }
@@ -140,7 +156,7 @@ namespace Virtuagym.CheckIn.WPF.Controls
             var selected = dataGridAccessPasses.SelectedItem as AccessPassEntry;
             if (selected == null)
             {
-                MessageBox.Show("Bitte wählen Sie einen Pass aus.", "Hinweis",
+                MessageBox.Show(L.T("AccessPass_Msg_SelectPass"), L.T("Msg_Note"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -150,15 +166,15 @@ namespace Virtuagym.CheckIn.WPF.Controls
 
             if (string.IsNullOrEmpty(dataUri))
             {
-                MessageBox.Show("QR-Code konnte nicht generiert werden. Prüfen Sie den Club Secret in den API-Einstellungen.",
-                    "Fehler", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(L.T("AccessPass_Msg_QrFailed"),
+                    L.T("Msg_Error"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             // Show QR in a simple window
             var qrWindow = new Window
             {
-                Title = $"QR-Code: {selected.DisplayName}",
+                Title = string.Format(L.T("AccessPass_Msg_QrWindowTitle"), selected.DisplayName),
                 Width = 400,
                 Height = 480,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -192,7 +208,7 @@ namespace Virtuagym.CheckIn.WPF.Controls
             });
             stack.Children.Add(new Button
             {
-                Content = "Schließen",
+                Content = L.T("Btn_Close"),
                 Width = 100,
                 Height = 28,
                 HorizontalAlignment = HorizontalAlignment.Center
@@ -208,21 +224,21 @@ namespace Virtuagym.CheckIn.WPF.Controls
             var selected = dataGridAccessPasses.SelectedItem as AccessPassEntry;
             if (selected == null)
             {
-                MessageBox.Show("Bitte wählen Sie einen Pass aus.", "Hinweis",
+                MessageBox.Show(L.T("AccessPass_Msg_SelectPass"), L.T("Msg_Note"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             if (!selected.IsActive)
             {
-                MessageBox.Show("Dieser Pass ist bereits deaktiviert.", "Hinweis",
+                MessageBox.Show(L.T("AccessPass_Msg_AlreadyDeactivated"), L.T("Msg_Note"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             var result = MessageBox.Show(
-                $"Soll der Pass '{selected.DisplayName}' deaktiviert werden?",
-                "Pass deaktivieren",
+                string.Format(L.T("AccessPass_Msg_DeactivateConfirm"), selected.DisplayName),
+                L.T("AccessPass_Msg_DeactivateTitle"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
@@ -230,7 +246,7 @@ namespace Virtuagym.CheckIn.WPF.Controls
             {
                 _service.Deactivate(selected.Id);
                 Refresh();
-                txtStatus.Text = $"Pass '{selected.DisplayName}' deaktiviert.";
+                txtStatus.Text = string.Format(L.T("AccessPass_Msg_Deactivated"), selected.DisplayName);
                 txtStatus.Foreground = Brushes.Orange;
             }
         }
@@ -240,14 +256,14 @@ namespace Virtuagym.CheckIn.WPF.Controls
             var selected = dataGridAccessPasses.SelectedItem as AccessPassEntry;
             if (selected == null)
             {
-                MessageBox.Show("Bitte wählen Sie einen Pass aus.", "Hinweis",
+                MessageBox.Show(L.T("AccessPass_Msg_SelectPass"), L.T("Msg_Note"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             var result = MessageBox.Show(
-                $"Soll der Pass '{selected.DisplayName}' endgültig gelöscht werden?",
-                "Pass löschen",
+                string.Format(L.T("AccessPass_Msg_DeleteConfirm"), selected.DisplayName),
+                L.T("AccessPass_Msg_DeleteTitle"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
@@ -255,7 +271,7 @@ namespace Virtuagym.CheckIn.WPF.Controls
             {
                 _service.Delete(selected.Id);
                 Refresh();
-                txtStatus.Text = $"Pass '{selected.DisplayName}' gelöscht.";
+                txtStatus.Text = string.Format(L.T("AccessPass_Msg_Deleted"), selected.DisplayName);
                 txtStatus.Foreground = Brushes.Green;
             }
         }

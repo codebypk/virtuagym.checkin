@@ -24,6 +24,7 @@ namespace Virtuagym.CheckIn.WPF.Controls
             lblClubLogo.Text = L.T("Settings_Lbl_ClubLogo");
             lblMonitorLabel.Text = L.T("Settings_Lbl_Monitor");
             lblShowQrCameraPreview.Text = L.T("Settings_Lbl_ShowQrCameraPreview");
+            lblDeviceHotplugPollInterval.Text = L.T("Settings_Lbl_DeviceHotplugPollIntervalSeconds");
 
             grpSounds.Header = L.T("Settings_Grp_Sounds");
             lblSoundSuccess.Text = L.T("Settings_Lbl_SoundSuccess");
@@ -59,6 +60,7 @@ namespace Virtuagym.CheckIn.WPF.Controls
             chkShowClubLogo.IsChecked = Settings.Default.ShowClubLogo;
             chkShowQrCameraPreview.IsChecked = Settings.Default.ShowQrCameraPreviewOnWelcome;
             txtClubLogoPath.Text = Settings.Default.ClubLogoPath;
+            txtDeviceHotplugPollIntervalSeconds.Text = Settings.Default.DeviceHotplugPollIntervalSeconds.ToString();
 
             // Monitor-Auswahl befüllen
             cmbWelcomeScreenMonitor.Items.Clear();
@@ -117,6 +119,7 @@ namespace Virtuagym.CheckIn.WPF.Controls
             updateSetting("ShowQrCameraPreviewOnWelcome", chkShowQrCameraPreview.IsChecked.ToString());
             updateSetting("WelcomeScreenMonitor", ((cmbWelcomeScreenMonitor.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "0"));
             updateSetting("ClubLogoPath", txtClubLogoPath.Text);
+            updateSetting("DeviceHotplugPollIntervalSeconds", txtDeviceHotplugPollIntervalSeconds.Text);
 
             // Sounds
             updateSetting("SoundCheckinSuccess", txtSoundCheckinSuccess.Text);

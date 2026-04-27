@@ -88,6 +88,10 @@
     <ProjectReference Include="..\AccessPass\AccessPass.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.13.0.20260302" />
+    <PackageReference Include="OpenCvSharp4.Extensions" Version="4.13.0.20260318" />
+  </ItemGroup>
+  <ItemGroup>
     <Compile Update="Properties\Settings.Designer.cs">
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
       <AutoGen>True</AutoGen>
