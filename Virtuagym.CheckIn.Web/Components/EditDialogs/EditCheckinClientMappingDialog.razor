@@ -42,12 +42,12 @@
 
                         <label>@L.T("Web_EditMapping_Lbl_InputType")</label>
                         <select class="form-input" style="width:220px;" @bind="Mapping.InputType">
-                            <option value="@CheckinClientMapping.InputTypeRfid">@L.T("Web_EditMapping_Type_UsbReader")</option>
-                            <option value="@CheckinClientMapping.InputTypeQrCode">@L.T("Web_EditMapping_Type_QrCamera")</option>
-                            <option value="@CheckinClientMapping.InputTypeCcid">@L.T("Web_EditMapping_Type_Ccid")</option>
+                            <option value="@nameof(HardwareInputType.USBReader)">@L.T("Web_EditMapping_Type_UsbReader")</option>
+                            <option value="@nameof(HardwareInputType.QRCode)">@L.T("Web_EditMapping_Type_QrCamera")</option>
+                            <option value="@nameof(HardwareInputType.CCID)">@L.T("Web_EditMapping_Type_Ccid")</option>
                         </select>
 
-                        @if (Mapping.InputType != CheckinClientMapping.InputTypeQrCode)
+                        @if (Mapping.InputType != nameof(HardwareInputType.QRCode))
                         {
                             <label>USB Device:</label>
                             <div style="display:flex; gap:4px; align-items:center;">
@@ -94,7 +94,7 @@
                             </select>
                         }
 
-                        @if (Mapping.InputType == CheckinClientMapping.InputTypeQrCode)
+                        @if (Mapping.InputType == nameof(HardwareInputType.QRCode))
                         {
                             <div style="grid-column:1/-1; margin-top:8px;">
                                 <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
@@ -116,7 +116,7 @@
                             </div>
                         }
 
-                        @if (Mapping.InputType == CheckinClientMapping.InputTypeRfid)
+                        @if (Mapping.InputType == nameof(HardwareInputType.USBReader))
                         {
                             <label>Repeat time (ms):</label>
                             <input type="number" class="form-input" style="width:120px;" @bind="_repeatTimeMs" />
@@ -205,7 +205,7 @@
                                placeholder="@(SettingsOptions.Value.DuplicateTimeoutSeconds)"
                                title="@string.Format(L.T("Web_EditMapping_Tip_DuplicateTimeout"), SettingsOptions.Value.DuplicateTimeoutSeconds)" />
 
-                        @if (Mapping.InputType != CheckinClientMapping.InputTypeQrCode)
+                        @if (Mapping.InputType != nameof(HardwareInputType.QRCode))
                         {
                             <label>@L.T("Web_EditMapping_Lbl_CardIdMode")</label>
                             <select class="form-input" style="width:380px;" @bind="Mapping.CardIdMode">
@@ -227,14 +227,14 @@
                 <fieldset style="padding:10px; border:1px solid #ddd; border-radius:4px;">
                     <legend style="font-weight:600;">@L.T("Web_EditMapping_Grp_DeviceTest")</legend>
 
-                    @if (Mapping.InputType == CheckinClientMapping.InputTypeRfid)
+                    @if (Mapping.InputType == nameof(HardwareInputType.USBReader))
                     {
                         <div style="display:flex; gap:8px; margin-bottom:8px;">
                             <button class="btn btn-sm" @onclick="TestBeep" disabled="@_testRunning" title="@L.T("Web_EditMapping_Tip_Beep")">Beep</button>
                             <button class="btn btn-sm" @onclick="TestRead" disabled="@_testRunning" title="@L.T("Web_EditMapping_Tip_ReadCard")">@L.T("EditMapping_Btn_ReadCard")</button>
                         </div>
                     }
-                    else if (Mapping.InputType == CheckinClientMapping.InputTypeQrCode)
+                    else if (Mapping.InputType == nameof(HardwareInputType.QRCode))
                     {
                         <div style="display:flex; gap:8px; margin-bottom:8px;">
                             <button class="btn btn-sm" @onclick="StartQrScanTest" disabled="@_qrTestRunning"
@@ -337,6 +337,16 @@
                             <option value="30">30</option>
                             <option value="60">60</option>
                         </select>
+
+                        <label title="Legt fest, ob das Relay beim Check-in, Check-out oder immer ausgelöst wird.">Auslösen bei:</label>
+                        <select class="form-input" style="width:180px;" @bind="Mapping.RelayTriggerAction" disabled="@(!Mapping.RelayEnabled)">
+                            <option value="Always">Immer</option>
+                            <option value="CheckinOnly">Nur beim Check-in</option>
+                            <option value="CheckoutOnly">Nur beim Check-out</option>
+                        </select>
+
+                        <label title="Zeigt eine Fehlermeldung am Display an, wenn das Relay nicht ausgelöst werden konnte.">Fehler anzeigen:</label>
+                        <input type="checkbox" @bind="Mapping.RelayShowErrorOnDisplay" disabled="@(!Mapping.RelayEnabled)" />
                     </div>
                     <div style="margin-top:10px;">
                         <button class="btn btn-sm" @onclick="TestRelay" disabled="@(!Mapping.RelayEnabled)">@L.T("Web_EditMapping_Btn_TestRelay")</button>
@@ -369,16 +379,26 @@
                             </select>
 
                             <label>@L.T("Web_EditMapping_Lbl_SwitchTime")</label>
-                        <select class="form-input" style="width:80px;" @bind="Mapping.PgTriggerTimeSec" disabled="@(!Mapping.PgEnabled)">
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                            <option value="5">5</option>
-                            <option value="10">10</option>
-                            <option value="15">15</option>
-                            <option value="30">30</option>
-                            <option value="60">60</option>
-                        </select>
+                            <select class="form-input" style="width:80px;" @bind="Mapping.PgTriggerTimeSec" disabled="@(!Mapping.PgEnabled)">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="5">5</option>
+                                <option value="10">10</option>
+                                <option value="15">15</option>
+                                <option value="30">30</option>
+                                <option value="60">60</option>
+                            </select>
+
+                            <label title="Legt fest, ob das Gate beim Check-in, Check-out oder immer ausgelöst wird.">Auslösen bei:</label>
+                            <select class="form-input" style="width:180px;" @bind="Mapping.PgTriggerAction" disabled="@(!Mapping.PgEnabled)">
+                                <option value="Always">Immer</option>
+                                <option value="CheckinOnly">Nur beim Check-in</option>
+                                <option value="CheckoutOnly">Nur beim Check-out</option>
+                            </select>
+
+                            <label title="Zeigt eine Fehlermeldung am Display an, wenn das Gate nicht ausgelöst werden konnte.">Fehler anzeigen:</label>
+                            <input type="checkbox" @bind="Mapping.PgShowErrorOnDisplay" disabled="@(!Mapping.PgEnabled)" />
                     </div>
                 </fieldset>
 
@@ -764,12 +784,12 @@
         _validationError = "";
 
         // Validation (matching WPF)
-        if (Mapping.InputType == CheckinClientMapping.InputTypeRfid && string.IsNullOrWhiteSpace(Mapping.DeviceID) && string.IsNullOrWhiteSpace(_selectedDeviceId))
+        if (Mapping.InputType == nameof(HardwareInputType.USBReader) && string.IsNullOrWhiteSpace(Mapping.DeviceID) && string.IsNullOrWhiteSpace(_selectedDeviceId))
         {
             _validationError = L.T("Web_EditMapping_Validation_SelectDevice");
             return;
         }
-        if (Mapping.InputType == CheckinClientMapping.InputTypeQrCode && _cameras.Count == 0)
+        if (Mapping.InputType == nameof(HardwareInputType.QRCode) && _cameras.Count == 0)
         {
             _validationError = L.T("Web_EditMapping_Validation_NoCamera");
             return;

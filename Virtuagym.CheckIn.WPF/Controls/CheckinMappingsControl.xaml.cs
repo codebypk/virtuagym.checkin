@@ -174,7 +174,7 @@ namespace Virtuagym.CheckIn.WPF.Controls
 
             foreach (var mapping in _checkinClientMappings)
             {
-                if (mapping.InputType == CheckinClientMapping.InputTypeQrCode)
+                if (mapping.InputType == nameof(HardwareInputType.QRCode))
                 {
                     if (cameras == null) cameras = await CameraDiscoveryService.GetCamerasAsync();
                     var cam = cameras.FirstOrDefault(c => c.Index == mapping.CameraIndex);

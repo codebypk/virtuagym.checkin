@@ -11,4 +11,7 @@ public class WpfWelcomeDisplay(WelcomeWindow window) : IWelcomeDisplay
 
     public void ShowCheckinResult(string status, string name, string? avatarUrl, string[] clientMessages, string? readerName = null)
         => window.ShowCheckinResult(status, name, avatarUrl, clientMessages, readerName);
+
+    public void ShowHardwareError(string message, string? readerName = null)
+        => window.ShowHardwareError(message, readerName);
 }

@@ -23,12 +23,14 @@ public class WpfAppSettings : IAppSettings
     public string JablotronApiUrl => Settings.Default.JablotronApiUrl;
     public string JablotronApiUsername => Settings.Default.JablotronApiUsername;
     public string JablotronApiPassword => Settings.Default.JablotronApiPassword;
+    public string JablotronApiPinCode => Settings.Default.JablotronApiPinCode;
 
     public int RepeatTimeInMs => Settings.Default.RepaitTimeInMs;
     public int DuplicateTimeoutSeconds => Settings.Default.DuplicateTimeoutSeconds;
     public long DefaultDoubleScanThresholdMs => Settings.Default.DefaultDoubleScanThresholdMs;
 
     public int CreditsCacheTtlMinutes => Settings.Default.CreditsCacheTtlMinutes;
+    public string CreditParsePattern => @"(\d+)\s*Guthabenpunkte";
 
     public string SoundCheckinSuccess => Settings.Default.SoundCheckinSuccess;
     public string SoundCheckinWarn => Settings.Default.SoundCheckinWarn;

@@ -26,4 +26,7 @@ public sealed class WebWelcomeDisplay(WebCheckinService checkinService) : IWelco
         });
         LastSoundPath = null;
     }
+
+    public void ShowHardwareError(string message, string? readerName = null)
+        => checkinService.RaiseHardwareError(message);
 }

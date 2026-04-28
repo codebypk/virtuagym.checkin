@@ -149,7 +149,7 @@ namespace Tests.Checkin
             var mapping = new CheckinClientMapping
             {
                 Name = readerName,
-                InputType = CheckinClientMapping.InputTypeRfid,
+                InputType = nameof(HardwareInputType.USBReader),
                 DeviceID = "vid_0416&pid_b030&mi_00",
                 CheckinKey = CheckinKey
             };

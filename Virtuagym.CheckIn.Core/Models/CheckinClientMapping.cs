@@ -1,8 +1,9 @@
 using System;
 using System.ComponentModel;
+using System.Management;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Virtuagym.API;
 
 namespace Virtuagym.CheckIn.Core.Models;
@@ -13,21 +14,10 @@ namespace Virtuagym.CheckIn.Core.Models;
 /// </summary>
 public class CheckinClientMapping : INotifyPropertyChanged
 {
-    /// <summary>
-    /// Global default for <see cref="DoubleScanThresholdMs"/>.
-    /// Must be set at application startup from <see cref="Abstractions.IAppSettings.DefaultDoubleScanThresholdMs"/>.
-    /// </summary>
-    public static long GlobalDefaultDoubleScanThresholdMs { get; set; } = 60000;
-
-    /// <summary>
-    /// Global default for <see cref="EffectiveDuplicateTimeoutSeconds"/>.
-    /// Must be set at application startup from <see cref="Abstractions.IAppSettings.DuplicateTimeoutSeconds"/>.
-    /// </summary>
-    public static int GlobalDefaultDuplicateTimeoutSeconds { get; set; } = 5;
-
+    #region Properties Public and private
     private string _uuid = "";
     private string _name = "";
-    private string _inputType = InputTypeRfid;
+    private string _inputType = nameof(HardwareInputType.USBReader);
     private string _deviceID = "";
     private int _cameraIndex;
     private int _cameraResolutionWidth = 640;
@@ -63,18 +53,35 @@ public class CheckinClientMapping : INotifyPropertyChanged
     private double _apiVersion = -1;
     private int _cardIdMode;
 
+    // Relay
+    private string _relayTriggerAction = nameof(HardwareTriggerAction.Always);
+    private bool _relayShowErrorOnDisplay;
+
+    // PG Gate
+    private string _pgTriggerAction = nameof(HardwareTriggerAction.Always);
+    private bool _pgShowErrorOnDisplay;
+
+    /// <summary>
+    /// Global default for <see cref="DoubleScanThresholdMs"/>.
+    /// Must be set at application startup from <see cref="Abstractions.IAppSettings.DefaultDoubleScanThresholdMs"/>.
+    /// </summary>
+    public static long GlobalDefaultDoubleScanThresholdMs { get; set; } = 60000;
+
+    /// <summary>
+    /// Global default for <see cref="EffectiveDuplicateTimeoutSeconds"/>.
+    /// Must be set at application startup from <see cref="Abstractions.IAppSettings.DuplicateTimeoutSeconds"/>.
+    /// </summary>
+    public static int GlobalDefaultDuplicateTimeoutSeconds { get; set; } = 5;
+
+
+    #endregion
+
     public CheckinClientMapping()
     {
         _doubleScanThresholdMs = GlobalDefaultDoubleScanThresholdMs;
     }
 
-    /// <summary>Input type: RFID reader.</summary>
-    public const string InputTypeRfid = "USBReader";
-    /// <summary>Input type: QR code camera.</summary>
-    public const string InputTypeQrCode = "QRCode";
-    /// <summary>Input type: CCID smart card reader (PC/SC).</summary>
-    public const string InputTypeCcid = "CCID";
-
+    #region General settings
     /// <summary>
     /// Internal unique ID of the mapping. Auto-generated if empty.
     /// </summary>
@@ -104,8 +111,12 @@ public class CheckinClientMapping : INotifyPropertyChanged
     public string InputType
     {
         get => _inputType;
-        set { _inputType = value; OnPropertyChanged(nameof(InputType)); }
+        set { _inputType = value; OnPropertyChanged(nameof(InputType)); OnPropertyChanged(nameof(InputTypeEnum)); }
     }
+
+    [JsonIgnore]
+    public HardwareInputType InputTypeEnum =>
+    Enum.TryParse<HardwareInputType>(_inputType, out var v) ? v : Models.HardwareInputType.USBReader;
 
     /// <summary>USB device ID of the RFID reader. Only relevant for InputType=USBReader.</summary>
     public string DeviceID
@@ -114,74 +125,11 @@ public class CheckinClientMapping : INotifyPropertyChanged
         set { _deviceID = value; OnPropertyChanged(nameof(DeviceID)); }
     }
 
-    /// <summary>Camera index (0-based). Only relevant for InputType=QRCode.</summary>
-    public int CameraIndex
-    {
-        get => _cameraIndex;
-        set { _cameraIndex = value; OnPropertyChanged(nameof(CameraIndex)); }
-    }
-
-    /// <summary>Camera resolution width in pixels. Default: 640.</summary>
-    public int CameraResolutionWidth
-    {
-        get => _cameraResolutionWidth;
-        set { _cameraResolutionWidth = value; OnPropertyChanged(nameof(CameraResolutionWidth)); }
-    }
-
-    /// <summary>Camera resolution height in pixels. Default: 480.</summary>
-    public int CameraResolutionHeight
-    {
-        get => _cameraResolutionHeight;
-        set { _cameraResolutionHeight = value; OnPropertyChanged(nameof(CameraResolutionHeight)); }
-    }
-
-    /// <summary>Video backend for OpenCV (e.g. "ANY", "MSMF", "DSHOW").</summary>
-    public string CameraBackend
-    {
-        get => _cameraBackend;
-        set { _cameraBackend = value ?? "ANY"; OnPropertyChanged(nameof(CameraBackend)); }
-    }
-
     /// <summary>Check-in key (club secret) for the Virtuagym API check-in.</summary>
     public string CheckinKey
     {
         get => _checkinKey;
         set { _checkinKey = value; OnPropertyChanged(nameof(CheckinKey)); }
-    }
-
-    /// <summary>Relay control enabled.</summary>
-    public bool RelayEnabled
-    {
-        get => _relayEnabled;
-        set { _relayEnabled = value; OnPropertyChanged(nameof(RelayEnabled)); }
-    }
-
-    /// <summary>COM port of the relay controller.</summary>
-    public string RelayComPort
-    {
-        get => _relayComPort;
-        set { _relayComPort = value; OnPropertyChanged(nameof(RelayComPort)); }
-    }
-
-    /// <summary>Relay number (1-based).</summary>
-    public int RelayNumber
-    {
-        get => _relayNumber;
-        set { _relayNumber = value; OnPropertyChanged(nameof(RelayNumber)); }
-    }
-
-    /// <summary>Trigger time in seconds.</summary>
-    public double RelayTriggerTime
-    {
-        get => _relayTriggerTime;
-        set { _relayTriggerTime = value; OnPropertyChanged(nameof(RelayTriggerTime)); }
-    }
-
-    /// <summary>Baud rate for serial communication with the relay controller.</summary>
-    public int RelayBaudRate
-    {
-        get => _relayBaudRate;
-        set { _relayBaudRate = value; OnPropertyChanged(nameof(RelayBaudRate)); }
     }
 
     /// <summary>
@@ -254,6 +202,96 @@ public class CheckinClientMapping : INotifyPropertyChanged
     public int EffectiveDuplicateTimeoutSeconds =>
         _duplicateTimeoutSeconds ?? GlobalDefaultDuplicateTimeoutSeconds;
 
+    #endregion
+
+    #region Camera settings
+    /// <summary>Camera index (0-based). Only relevant for InputType=QRCode.</summary>
+    public int CameraIndex
+    {
+        get => _cameraIndex;
+        set { _cameraIndex = value; OnPropertyChanged(nameof(CameraIndex)); }
+    }
+
+    /// <summary>Camera resolution width in pixels. Default: 640.</summary>
+    public int CameraResolutionWidth
+    {
+        get => _cameraResolutionWidth;
+        set { _cameraResolutionWidth = value; OnPropertyChanged(nameof(CameraResolutionWidth)); }
+    }
+
+    /// <summary>Camera resolution height in pixels. Default: 480.</summary>
+    public int CameraResolutionHeight
+    {
+        get => _cameraResolutionHeight;
+        set { _cameraResolutionHeight = value; OnPropertyChanged(nameof(CameraResolutionHeight)); }
+    }
+
+    /// <summary>Video backend for OpenCV (e.g. "ANY", "MSMF", "DSHOW").</summary>
+    public string CameraBackend
+    {
+        get => _cameraBackend;
+        set { _cameraBackend = value ?? "ANY"; OnPropertyChanged(nameof(CameraBackend)); }
+    }
+    #endregion
+
+    #region ComPort settings
+    /// <summary>Relay control enabled.</summary>
+    public bool RelayEnabled
+    {
+        get => _relayEnabled;
+        set { _relayEnabled = value; OnPropertyChanged(nameof(RelayEnabled)); }
+    }
+
+    /// <summary>COM port of the relay controller.</summary>
+    public string RelayComPort
+    {
+        get => _relayComPort;
+        set { _relayComPort = value; OnPropertyChanged(nameof(RelayComPort)); }
+    }
+
+    /// <summary>Relay number (1-based).</summary>
+    public int RelayNumber
+    {
+        get => _relayNumber;
+        set { _relayNumber = value; OnPropertyChanged(nameof(RelayNumber)); }
+    }
+
+    /// <summary>Trigger time in seconds.</summary>
+    public double RelayTriggerTime
+    {
+        get => _relayTriggerTime;
+        set { _relayTriggerTime = value; OnPropertyChanged(nameof(RelayTriggerTime)); }
+    }
+
+    /// <summary>Baud rate for serial communication with the relay controller.</summary>
+    public int RelayBaudRate
+    {
+        get => _relayBaudRate;
+        set { _relayBaudRate = value; OnPropertyChanged(nameof(RelayBaudRate)); }
+    }
+
+    /// <summary>JSON-serialized trigger action for relay. Use <see cref="RelayTriggerActionEnum"/> in code.</summary>
+    public string RelayTriggerAction
+    {
+        get => _relayTriggerAction;
+        set { _relayTriggerAction = value; OnPropertyChanged(nameof(RelayTriggerAction)); OnPropertyChanged(nameof(RelayTriggerActionEnum)); }
+    }
+
+    /// <summary>Typed trigger action for relay.</summary>
+    [JsonIgnore]
+    public HardwareTriggerAction RelayTriggerActionEnum =>
+        Enum.TryParse<HardwareTriggerAction>(_relayTriggerAction, out var v) ? v : HardwareTriggerAction.Always;
+
+
+    /// <summary>Show error on display if relay trigger fails.</summary>
+    public bool RelayShowErrorOnDisplay
+    {
+        get => _relayShowErrorOnDisplay;
+        set { _relayShowErrorOnDisplay = value; OnPropertyChanged(nameof(RelayShowErrorOnDisplay)); }
+    }
+    #endregion
+
+    #region Programmable Gate (PG) settings
     /// <summary>Jablotron Programmable Gate control enabled.</summary>
     public bool PgEnabled
     {
@@ -335,6 +373,27 @@ public class CheckinClientMapping : INotifyPropertyChanged
         set { _pgConditionTimeTo = value; OnPropertyChanged(nameof(PgConditionTimeTo)); }
     }
 
+    /// <summary>JSON-serialized trigger action for PG gate. Use <see cref="PgTriggerActionEnum"/> in code.</summary>
+    public string PgTriggerAction
+    {
+        get => _pgTriggerAction;
+        set { _pgTriggerAction = value; OnPropertyChanged(nameof(PgTriggerAction)); OnPropertyChanged(nameof(PgTriggerActionEnum)); }
+    }
+
+    /// <summary>Typed trigger action for PG gate.</summary>
+    [JsonIgnore]
+    public HardwareTriggerAction PgTriggerActionEnum =>
+        Enum.TryParse<HardwareTriggerAction>(_pgTriggerAction, out var v) ? v : HardwareTriggerAction.Always;
+
+    /// <summary>Show error on display if PG gate trigger fails.</summary>
+    public bool PgShowErrorOnDisplay
+    {
+        get => _pgShowErrorOnDisplay;
+        set { _pgShowErrorOnDisplay = value; OnPropertyChanged(nameof(PgShowErrorOnDisplay)); }
+    }
+    #endregion
+
+    #region Helper
     /// <summary>
     /// Returns the effective device ID used as a stable identifier in the member cache.
     /// </summary>
@@ -457,4 +516,6 @@ public class CheckinClientMapping : INotifyPropertyChanged
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
+
+    #endregion
 }

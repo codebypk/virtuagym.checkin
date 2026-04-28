@@ -25,6 +25,7 @@ public interface IAppSettings
     string JablotronApiUrl { get; }
     string JablotronApiUsername { get; }
     string JablotronApiPassword { get; }
+    string JablotronApiPinCode { get; }
 
     // --- Hardware ---
     int RepeatTimeInMs { get; }
@@ -33,6 +34,12 @@ public interface IAppSettings
 
     // --- Member Cache ---
     int CreditsCacheTtlMinutes { get; }
+
+    /// <summary>
+    /// Regex pattern to extract credit amount from v0 API employee_message.
+    /// Must contain one capture group for the numeric value. Empty = disabled.
+    /// </summary>
+    string CreditParsePattern { get; }
 
     // --- Sounds ---
     string SoundCheckinSuccess { get; }

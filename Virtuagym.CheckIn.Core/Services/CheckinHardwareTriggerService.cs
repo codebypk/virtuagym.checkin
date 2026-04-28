@@ -1,12 +1,14 @@
+using Hardware.Services;
+using Jablotron.API.Services;
 using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Jablotron.API.Services;
+using Virtuagym.API;
 using Virtuagym.CheckIn.Core.Abstractions;
 using Virtuagym.CheckIn.Core.Helper;
 using Virtuagym.CheckIn.Core.Models;
-using Hardware.Services;
+using static System.Collections.Specialized.BitVector32;
 
 namespace Virtuagym.CheckIn.Core.Services;
 
@@ -33,7 +35,8 @@ public class CheckinHardwareTriggerService
             _jablotronFactory ??= new JablotronCloudServiceFactory(
                 _settings.JablotronApiUrl,
                 _settings.JablotronApiUsername,
-                _settings.JablotronApiPassword);
+                _settings.JablotronApiPassword,
+                _settings.JablotronApiPinCode);
         }
         return _jablotronFactory;
     }
@@ -75,23 +78,47 @@ public class CheckinHardwareTriggerService
         _settings = settings;
     }
 
-    public void TriggerRelayIfEnabled(string displayName)
+    public void TriggerRelayIfEnabled(string displayName, string action, Action<string>? onError = null)
     {
-        if (_mapping.RelayEnabled && !string.IsNullOrWhiteSpace(_mapping.RelayComPort))
+        if (!_mapping.RelayEnabled || string.IsNullOrWhiteSpace(_mapping.RelayComPort))
+            return;
+
+        if (!IsActionAllowed(_mapping.RelayTriggerActionEnum, action))
         {
-            _logger.WriteToLog($"[{displayName}] {L.T("Log_RelayTriggered")}: {_mapping.RelayComPort} #{_mapping.RelayNumber}");
-            var relay = new RelayController(new HardwareLoggerAdapter(_logger));
-            relay.CycleRelay(_mapping.RelayComPort, _mapping.RelayNumber, _mapping.RelayBaudRate, _mapping.RelayTriggerTime);
+            _logger.WriteToLog($"[{displayName}] {L.T("Log_RelaySkipped")} – TriggerAction={_mapping.RelayTriggerAction}, action={action}", Constants.LogInfo);
+            return;
         }
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                _logger.WriteToLog($"[{displayName}] {L.T("Log_RelayTriggered")}: {_mapping.RelayComPort} #{_mapping.RelayNumber}");
+                var relay = new RelayController(new HardwareLoggerAdapter(_logger));
+                relay.CycleRelay(_mapping.RelayComPort, _mapping.RelayNumber, _mapping.RelayBaudRate, _mapping.RelayTriggerTime);
+            }
+            catch (Exception ex)
+            {
+                _logger.WriteToLog($"[{displayName}] Relay error: {ex.Message}", Constants.LogWarning);
+                if (_mapping.RelayShowErrorOnDisplay)
+                    onError?.Invoke(L.T("Msg_TriggerRelayFailed"));
+            }
+        });
     }
 
-    public void TriggerPgGateIfEnabled(string displayName, CancellationToken cancellationToken = default)
+    public void TriggerPgGateIfEnabled(string displayName, string action, CancellationToken cancellationToken = default, Action<string>? onError = null)
     {
         if (!_mapping.PgEnabled || string.IsNullOrWhiteSpace(_mapping.PgGateComponentId))
             return;
 
-        int PgGateRetryCount = 3;
-        int PgGateRetryDelayMs = 500;
+        if (!IsActionAllowed(_mapping.PgTriggerActionEnum, action))
+        {
+            _logger.WriteToLog($"[{displayName}] {L.T("Log_PgGateSkipped")} – TriggerAction={_mapping.PgTriggerAction}, action={action}", Constants.LogInfo);
+            return;
+        }
+
+        const int PgGateRetryCount = 3;
+        const int PgGateRetryDelayMs = 500;
 
         string componentId = _mapping.PgGateComponentId;
         string serviceId = _mapping.PgGateServiceId;
@@ -113,6 +140,7 @@ public class CheckinHardwareTriggerService
                 if (int.TryParse(serviceId, out var sid) && sid > 0)
                     parsedServiceId = sid;
 
+                // --- Condition: OnlyIfOn / OnlyIfOff ---
                 if (conditionMode == "OnlyIfOn" || conditionMode == "OnlyIfOff")
                 {
                     if (string.IsNullOrWhiteSpace(condComponentId))
@@ -144,16 +172,19 @@ public class CheckinHardwareTriggerService
                         return;
                     }
                 }
+                // --- Condition: TimeRange ---
                 else if (conditionMode == "TimeRange")
                 {
                     string timeFrom = _mapping.PgConditionTimeFrom ?? "";
                     string timeTo = _mapping.PgConditionTimeTo ?? "";
+
                     if (TimeSpan.TryParse(timeFrom, out var from) && TimeSpan.TryParse(timeTo, out var to))
                     {
                         var now = DateTime.Now.TimeOfDay;
                         bool inRange = from <= to
                             ? (now >= from && now <= to)
-                            : (now >= from || now <= to);
+                            : (now >= from || now <= to);  // overnight range
+
                         if (!inRange)
                         {
                             _logger.WriteToLog($"[{displayName}] {string.Format(L.T("Log_PgTimeRangeNotMet"), timeFrom, timeTo, now.ToString(@"hh\:mm"))}", Constants.LogInfo);
@@ -167,15 +198,21 @@ public class CheckinHardwareTriggerService
                     }
                 }
 
+                // --- Gate ON ---
                 bool onSuccess = await SendGateCommandWithRetryAsync(
                     client, parsedServiceId, componentId, "ON",
                     gateName, displayName, PgGateRetryCount, PgGateRetryDelayMs, cancellationToken);
 
                 if (!onSuccess)
+                {
+                    if (_mapping.PgShowErrorOnDisplay)
+                        onError?.Invoke(L.T("Msg_TriggerPgFailed"));
                     return;
+                }
 
                 _logger.WriteToLog($"[{displayName}] {string.Format(L.T("Log_PgGateOnWaiting"), gateName, triggerTimeSec)}");
 
+                // --- Gate OFF nach Delay ---
                 if (triggerTimeSec > 0)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(triggerTimeSec), cancellationToken);
@@ -186,6 +223,8 @@ public class CheckinHardwareTriggerService
 
                     if (offSuccess)
                         _logger.WriteToLog($"[{displayName}] {string.Format(L.T("Log_PgGateOffSuccess"), gateName, triggerTimeSec)}");
+                    else if (_mapping.PgShowErrorOnDisplay)
+                        onError?.Invoke(L.T("Msg_TriggerPgFailed"));
                 }
             }
             catch (OperationCanceledException)
@@ -195,6 +234,8 @@ public class CheckinHardwareTriggerService
             catch (Exception ex)
             {
                 _logger.WriteToLog($"[{displayName}] {L.T("Log_PgGateError")}: {ex.Message}", Constants.LogWarning);
+                if (_mapping.PgShowErrorOnDisplay)
+                    onError?.Invoke(L.T("Msg_TriggerPgFailed"));
             }
             finally
             {
@@ -250,4 +291,17 @@ public class CheckinHardwareTriggerService
         _logger.WriteToLog($"[{displayName}] {string.Format(L.T("Log_PgGateAllRetryAttemptsFailed"), finalFailedMessage, retryCount)}", Constants.LogWarning);
         return false;
     }
+
+    private static bool IsActionAllowed(HardwareTriggerAction triggerAction, string action)
+    {
+        bool isCheckout = string.Equals(action, ApiConstants.ActionCheckout, StringComparison.OrdinalIgnoreCase);
+        return triggerAction switch
+        {
+           HardwareTriggerAction.CheckinOnly => !isCheckout,
+            HardwareTriggerAction.CheckoutOnly => isCheckout,
+            HardwareTriggerAction.Always => true,
+            _ => false
+        };
+    }
 }
+

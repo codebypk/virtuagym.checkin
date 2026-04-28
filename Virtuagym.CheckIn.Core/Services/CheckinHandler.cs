@@ -147,7 +147,7 @@ public class CheckinHandler
 
             var result = await ExecuteCheckinToggleAsync(rfidTag, cachedMember);
             cachedMember = await UpdateCacheAfterCheckinAsync(result, rfidTag, cachedMember, displayName);
-
+           
             if (result.Success)
                 HandleCheckinSuccess(result, displayName, cancellationToken, cachedMember);
             else
@@ -183,7 +183,7 @@ public class CheckinHandler
         if (result.Success)
         {
             string actionText = result.Action == "checkout" ? L.T("Log_ActionCheckout") : L.T("Log_ActionCheckin");
-            ShowSuccessWithHardwareTrigger(displayName, result.DisplayName ?? "", result.AvatarPath, localizedMessages,
+            ShowSuccessWithHardwareTrigger(displayName, result.DisplayName ?? "", result.Action, result.AvatarPath, localizedMessages,
                 $"[{displayName}] AccessPass {actionText}: {result.DisplayName} ({result.RemainingUses}/{result.TotalUses})", cancellationToken);
         }
         else
@@ -210,13 +210,21 @@ public class CheckinHandler
         _welcomeDisplay?.ShowCheckinResult(Constants.StatusReject, memberName, avatar, messages, displayName);
     }
 
-    private void ShowSuccessWithHardwareTrigger(string displayName, string memberName, string? avatar, string[] messages, string logMessage, CancellationToken cancellationToken)
+    private void ShowSuccessWithHardwareTrigger(string displayName, string memberName, string action, string? avatar, string[] messages, string logMessage, CancellationToken cancellationToken)
     {
         _logger.WriteToLog(logMessage, Constants.LogSuccess);
         _soundPlayer.Play(_settings.SoundCheckinSuccess);
         _welcomeDisplay?.ShowCheckinResult(Constants.StatusOk, memberName, avatar, messages, displayName);
-        _hardwareTrigger.TriggerRelayIfEnabled(displayName);
-        _hardwareTrigger.TriggerPgGateIfEnabled(displayName, cancellationToken);
+
+        void OnHardwareError(string errorMessage)
+        {
+            _logger.WriteToLog($"[{displayName}] {errorMessage}", Constants.LogWarning);
+            _soundPlayer.Play(_settings.SoundCheckinError);
+            _welcomeDisplay?.ShowHardwareError(errorMessage, displayName);
+        }
+
+        _hardwareTrigger.TriggerRelayIfEnabled(displayName, action ?? ApiConstants.ActionCheckin, OnHardwareError);
+        _hardwareTrigger.TriggerPgGateIfEnabled(displayName, action ?? ApiConstants.ActionCheckin, cancellationToken, OnHardwareError);
     }
 
     private static string[] BuildLocalizedAccessPassMessages(AccessPassResult result)
@@ -290,19 +298,31 @@ public class CheckinHandler
         return true;
     }
 
-    private async Task<bool> RejectIfInsufficientCreditsAsync(CachedMemberInfo? cachedMember, string displayName)
+    private Task<bool> RejectIfInsufficientCreditsAsync(CachedMemberInfo? cachedMember, string displayName)
     {
         bool requireCredits = !string.IsNullOrWhiteSpace(_mapping.CreditServiceId);
         if (!requireCredits || cachedMember == null || cachedMember.MemberId == 0)
-            return false;
+            return Task.FromResult(false);
 
         string serviceId = _mapping.CreditServiceId ?? "";
-        int clubId = _mapping.CreditClubId;
 
-        await _creditService.RefreshIfStaleAsync(cachedMember, serviceId, clubId, _mapping.CheckinKey, displayName);
-
+        // Only check locally cached credits – NO separate API call
         if (!_creditService.HasInsufficientCredits(cachedMember, serviceId, out var serviceName, out var creditAmount, out var minCreditsRequired))
-            return false;
+            return Task.FromResult(false);
+
+        // Insufficient according to cache – only reject if cache is fresh
+        int ttlMinutes = Math.Max(1, _settings.CreditsCacheTtlMinutes);
+        long ttlMs = ttlMinutes * 60L * 1000L;
+        long nowTs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        bool creditsFresh = cachedMember.CreditsLastSyncTimestamp > 0
+            && (nowTs - cachedMember.CreditsLastSyncTimestamp) <= ttlMs;
+
+        if (!creditsFresh)
+        {
+            // Stale → let the API decide, don't block
+            _logger.WriteToLog($"[{displayName}] Credits stale – API entscheidet ({serviceId}, cached={creditAmount})", Constants.LogInfo);
+            return Task.FromResult(false);
+        }
 
         string creditMsg = string.Format(
             ApiMessageOverrides.Resolve(_settings.ApiMsgInsufficientCredits, ApiConstants.MsgInsufficientCredits),
@@ -313,11 +333,22 @@ public class CheckinHandler
             : new[] { creditMsg };
         ShowReject(displayName, GetMemberFullName(cachedMember), cachedMember.Avatar, messages,
             $"[{displayName}] {L.T("Log_InsufficientCredits")}: {cachedMember.MemberId} ({serviceId}, {creditAmount}/{minCreditsRequired})");
-        return true;
+        return Task.FromResult(true);
     }
 
     private async Task<CheckinToggleResult> ExecuteCheckinToggleAsync(Card rfidTag, CachedMemberInfo? cachedMember)
     {
+        string FormatThreshold(long thresholdMs)
+        {
+            long seconds = Math.Max(1, thresholdMs / 1_000);
+            if (seconds >= 60)
+            {
+                long minutes = seconds / 60;
+                return $"{minutes} {(minutes == 1 ? L.T("Time_Minute_Singular") : L.T("Time_Minute_Plural"))}";
+            }
+            return $"{seconds} {(seconds == 1 ? L.T("Time_Second_Singular") : L.T("Time_Second_Plural"))}";
+        };
+
         var msgOverrides = new ApiMessageOverrides
         {
             MsgMemberNotFoundByRfid = _settings.ApiMsgMemberNotFoundByRfid,
@@ -327,10 +358,11 @@ public class CheckinHandler
             MsgCheckinFailed = _settings.ApiMsgCheckinFailed,
             MsgCheckoutFailed = _settings.ApiMsgCheckoutFailed,
             MsgInsufficientCredits = _settings.ApiMsgInsufficientCredits,
-            MsgMemberNotActive = _settings.ApiMsgMemberNotActive
+            MsgMemberNotActive = _settings.ApiMsgMemberNotActive,
+            FormatDoubleScanThreshold = FormatThreshold
         };
+        
         string deviceId = _mapping.EffectiveDeviceId;
-
         bool useV0 = _mapping.ApiVersion == 0 || rfidTag.IsRawValue;
 
         if (useV0)
@@ -394,13 +426,67 @@ public class CheckinHandler
             _logger.WriteToLog($"[{displayName}] {string.Format(L.T("Log_CacheMissBackfilled"), result.MemberName, result.MemberId)}");
         }
 
-        await RefreshAvatarIfNeededAsync(cachedMember, displayName);
+        // fire-and-forget avatar refresh if needed should not block the main flow
+        _ = RefreshAvatarIfNeededAsync(cachedMember, displayName);
 
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         if (result.Action == ApiConstants.ActionCheckin)
             _memberCache.UpdateVisitTimestamps(result.MemberId, now, 0, deviceId, result.VisitId, _mapping.ApiVersion);
         else if (result.Action == ApiConstants.ActionCheckout)
             _memberCache.UpdateVisitTimestamps(result.MemberId, 0, now, deviceId, result.VisitId, _mapping.ApiVersion);
+
+        // Credits aktualisieren:
+        // Priorität 1 – Wert direkt aus v0 employee_message parsen (kein extra API-Call)
+        // Priorität 2 – Cache stale und kein Parsing möglich (v1 / kein Pattern / unlimited)
+        //               → await RefreshIfStaleAsync, damit Cache vor dem nächsten Scan aktuell ist
+        if (!string.IsNullOrWhiteSpace(_mapping.CreditServiceId))
+        {
+            bool creditsUpdatedFromResponse = false;
+
+            if (result.EmployeeMessage != null
+                && CheckinCreditService.TryParseCreditFromEmployeeMessage(
+                    result.EmployeeMessage, _settings.CreditParsePattern, out int parsedCredits))
+            {
+                string serviceId = _mapping.CreditServiceId;
+                long nowTs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+                if (cachedMember != null)
+                {
+                    cachedMember.ServiceCredits ??= [];
+                    var existing = cachedMember.GetCreditsForService(serviceId);
+                    if (existing != null)
+                    {
+                        existing.CreditAmount = parsedCredits;
+                        existing.CreditUnlimited = false;
+                    }
+                    else
+                        cachedMember.ServiceCredits.Add(new ClubServiceCredits
+                        {
+                            service_id = serviceId,
+                            CreditAmount = parsedCredits,
+                            CreditUnlimited = false
+                        });
+                    cachedMember.CreditsLastSyncTimestamp = nowTs;
+                }
+
+                _memberCache.UpdateCredits(result.MemberId, parsedCredits, false, serviceId, null, nowTs);
+                _logger.WriteToLog($"[{displayName}] Credits aus Response aktualisiert: {parsedCredits} ({serviceId})");
+                creditsUpdatedFromResponse = true;
+            }
+
+            // Kein Parsing möglich (z.B. v1, kein Pattern konfiguriert, oder unlimited credits
+            // → keine Zahl in der employee_message). Falls Cache stale: synchron refreshen,
+            // damit der Cache vor dem nächsten Scan bereits den korrekten Wert (inkl. unlimited) enthält.
+            if (!creditsUpdatedFromResponse && cachedMember != null && IsCreditCacheStale(cachedMember))
+            {
+                await _creditService.RefreshIfStaleAsync(
+                    cachedMember,
+                    _mapping.CreditServiceId,
+                    _mapping.CreditClubId,
+                    _mapping.CheckinKey,
+                    displayName);
+            }
+        }
 
         return cachedMember;
     }
@@ -472,8 +558,15 @@ public class CheckinHandler
         _welcomeDisplay?.ShowCheckinResult(result.Status, result.MemberName, result.MemberAvatar,
             baseMessages, displayName);
 
-        _hardwareTrigger.TriggerRelayIfEnabled(displayName);
-        _hardwareTrigger.TriggerPgGateIfEnabled(displayName, cancellationToken);
+        void OnHardwareError(string errorMessage)
+        {
+            _logger.WriteToLog($"[{displayName}] {errorMessage}", Constants.LogWarning);
+            _soundPlayer.Play(_settings.SoundCheckinError);
+            _welcomeDisplay?.ShowHardwareError(errorMessage, displayName);
+        }
+
+        _hardwareTrigger.TriggerRelayIfEnabled(displayName, result.Action, OnHardwareError);
+        _hardwareTrigger.TriggerPgGateIfEnabled(displayName, result.Action, cancellationToken, OnHardwareError);
     }
 
     private void HandleCheckinFailure(CheckinToggleResult result, Card rfidTag, string displayName)
@@ -542,7 +635,7 @@ public class CheckinHandler
         else
         {
             _memberCache.UpdateVisitTimestamps(cachedMember.MemberId, now, 0, deviceId, visitId, _mapping.ApiVersion);
-            _creditService.DecrementOffline(cachedMember, _mapping.CreditServiceId, displayName);
+            _creditService.DecrementCredits(cachedMember, _mapping.CreditServiceId, displayName);
         }
 
         int pendingCount = _memberCache.GetPendingCheckinCount();
@@ -554,8 +647,21 @@ public class CheckinHandler
         if (offlineCreditMsg != null)
             offlineMessages = [.. offlineMessages, offlineCreditMsg];
 
-        ShowSuccessWithHardwareTrigger(displayName, memberName, offlineAvatar, offlineMessages,
+        ShowSuccessWithHardwareTrigger(displayName, memberName, isCheckout ? ApiConstants.ActionCheckout : ApiConstants.ActionCheckin, offlineAvatar, offlineMessages,
             $"[{displayName}] {L.T("Log_OfflineCheckin")} ({actionText}): {memberName} ({pendingCount} {L.T("Log_Pending")})", cancellationToken);
+    }
+
+    /// <summary>
+    /// Returns true when the credit cache has never been synced or the TTL has expired.
+    /// </summary>
+    private bool IsCreditCacheStale(CachedMemberInfo cachedMember)
+    {
+        if (cachedMember.CreditsLastSyncTimestamp <= 0)
+            return true;
+
+        long ttlMs = Math.Max(1, _settings.CreditsCacheTtlMinutes) * 60L * 1000L;
+        long nowTs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        return (nowTs - cachedMember.CreditsLastSyncTimestamp) > ttlMs;
     }
 
     #endregion

@@ -295,6 +295,8 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="160"/>
@@ -347,7 +349,21 @@
                             <ComboBoxItem Content="60" Tag="60"/>
                         </ComboBox>
 
-                        <Button x:Name="btnTestMappingRelay" Grid.Row="5" Grid.Column="1" Content="Relay testen" 
+                        <TextBlock x:Name="lblRelayTriggerAction" Grid.Row="5" Grid.Column="0" Text="Auslösen bei:" VerticalAlignment="Center" Margin="0,5"
+                                   ToolTip="Legt fest, ob das Relay beim Check-in, Check-out oder immer ausgelöst wird."/>
+                        <ComboBox x:Name="cmbRelayTriggerAction" Grid.Row="5" Grid.Column="1" Width="160" HorizontalAlignment="Left" Margin="0,5" IsEnabled="False"
+                                  ToolTip="Legt fest, ob das Relay beim Check-in, Check-out oder immer ausgelöst wird.">
+                            <ComboBoxItem Content="Immer" Tag="Always"/>
+                            <ComboBoxItem Content="Nur beim Check-in" Tag="CheckinOnly"/>
+                            <ComboBoxItem Content="Nur beim Check-out" Tag="CheckoutOnly"/>
+                        </ComboBox>
+
+                        <TextBlock x:Name="lblRelayShowError" Grid.Row="6" Grid.Column="0" Text="Fehler anzeigen:" VerticalAlignment="Center" Margin="0,5"
+                                   ToolTip="Zeigt eine Fehlermeldung am Display an, wenn das Relay nicht ausgelöst werden konnte."/>
+                        <CheckBox x:Name="chkRelayShowErrorOnDisplay" Grid.Row="6" Grid.Column="1" VerticalAlignment="Center" Margin="0,5" IsEnabled="False"
+                                  ToolTip="Zeigt eine Fehlermeldung am Display an, wenn das Relay nicht ausgelöst werden konnte."/>
+
+                        <Button x:Name="btnTestMappingRelay" Grid.Row="7" Grid.Column="1" Content="Relay testen" 
                                 Width="120" Height="28" HorizontalAlignment="Left" Margin="0,8,0,0" IsEnabled="False"
                                 Click="btnTestMappingRelay_Click"
                                 ToolTip="Testet das Relay mit den aktuellen Einstellungen."/>
@@ -365,6 +381,8 @@
 
                         <Grid>
                             <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
@@ -392,6 +410,20 @@
                                 <ComboBoxItem Content="30" Tag="30"/>
                                 <ComboBoxItem Content="60" Tag="60"/>
                             </ComboBox>
+
+                            <TextBlock x:Name="lblPgTriggerAction" Grid.Row="3" Grid.Column="0" Text="Auslösen bei:" VerticalAlignment="Center" Margin="0,5"
+                                       ToolTip="Legt fest, ob das Gate beim Check-in, Check-out oder immer ausgelöst wird."/>
+                            <ComboBox x:Name="cmbPgTriggerAction" Grid.Row="3" Grid.Column="1" Width="160" HorizontalAlignment="Left" Margin="0,5" IsEnabled="False"
+                                      ToolTip="Legt fest, ob das Gate beim Check-in, Check-out oder immer ausgelöst wird.">
+                                <ComboBoxItem Content="Immer" Tag="Always"/>
+                                <ComboBoxItem Content="Nur beim Check-in" Tag="CheckinOnly"/>
+                                <ComboBoxItem Content="Nur beim Check-out" Tag="CheckoutOnly"/>
+                            </ComboBox>
+
+                            <TextBlock x:Name="lblPgShowError" Grid.Row="4" Grid.Column="0" Text="Fehler anzeigen:" VerticalAlignment="Center" Margin="0,5"
+                                       ToolTip="Zeigt eine Fehlermeldung am Display an, wenn das Gate nicht ausgelöst werden konnte."/>
+                            <CheckBox x:Name="chkPgShowErrorOnDisplay" Grid.Row="4" Grid.Column="1" VerticalAlignment="Center" Margin="0,5" IsEnabled="False"
+                                      ToolTip="Zeigt eine Fehlermeldung am Display an, wenn das Gate nicht ausgelöst werden konnte."/>
                         </Grid>
 
                         <Separator Margin="0,10,0,6"/>

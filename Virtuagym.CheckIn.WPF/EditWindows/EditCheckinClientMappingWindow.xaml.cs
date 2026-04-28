@@ -15,11 +15,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using Virtuagym.API;
 using Virtuagym.CheckIn.Core.Models;
-using Virtuagym.CheckIn.WPF.Properties;
 using Virtuagym.CheckIn.Core.Services;
+using Virtuagym.CheckIn.WPF.Properties;
 using Virtuagym.CheckIn.WPF.Services;
 using Brushes = System.Windows.Media.Brushes;
 
@@ -71,8 +72,14 @@ namespace Virtuagym.CheckIn.WPF
                 cmbMappingRelayComPort.Items.Add(port);
             }
 
-            // Credit-Dienstleistungen laden
+            // Load General Data
             PopulateCreditServices();
+            UpdateRelayControlsEnabled();
+            LoadPgGatesFromJson();
+            UpdatePgControlsEnabled();
+            PopulateHidProfiles();
+            PopulateCameraBackends();
+            UpdateApiModeInfo();
 
             if (existing != null)
             {
@@ -99,12 +106,6 @@ namespace Virtuagym.CheckIn.WPF
                 txtDuplicateTimeoutSeconds.Text = Settings.Default.DuplicateTimeoutSeconds.ToString();
             }
 
-            UpdateRelayControlsEnabled();
-            LoadPgGatesFromJson();
-            UpdatePgControlsEnabled();
-            PopulateHidProfiles();
-            PopulateCameraBackends();
-            UpdateApiModeInfo();
 
             tabMain.SelectionChanged += TabMain_SelectionChanged;
             Closing += (_, __) => StopQrScanPreview();
@@ -241,7 +242,7 @@ namespace Virtuagym.CheckIn.WPF
             txtMappingCheckinKey.Text = mapping.CheckinKey ?? "";
 
             // Eingabetyp setzen
-            string inputType = mapping.InputType ?? CheckinClientMapping.InputTypeRfid;
+            string inputType = mapping.InputType ?? nameof(HardwareInputType.USBReader);
             foreach (ComboBoxItem item in cmbMappingInputType.Items)
             {
                 if ((string)item.Tag == inputType)
@@ -317,6 +318,22 @@ namespace Virtuagym.CheckIn.WPF
                     break;
                 }
             }
+
+            // Relay TriggerAction setzen
+            string relayTriggerAction = mapping.RelayTriggerAction ?? "Always";
+            foreach (ComboBoxItem item in cmbRelayTriggerAction.Items)
+            {
+                if ((string)item.Tag == relayTriggerAction)
+                {
+                    cmbRelayTriggerAction.SelectedItem = item;
+                    break;
+                }
+            }
+            if (cmbRelayTriggerAction.SelectedItem == null)
+                cmbRelayTriggerAction.SelectedIndex = 0;
+
+            // Relay ShowErrorOnDisplay setzen
+            chkRelayShowErrorOnDisplay.IsChecked = mapping.RelayShowErrorOnDisplay;
 
             // Doppelscan-Schutz setzen
             string thresholdStr = mapping.DoubleScanThresholdMs.ToString();
@@ -425,6 +442,22 @@ namespace Virtuagym.CheckIn.WPF
             txtPgConditionTimeFrom.Text = mapping.PgConditionTimeFrom ?? "";
             txtPgConditionTimeTo.Text = mapping.PgConditionTimeTo ?? "";
 
+            // PG TriggerAction setzen
+            string pgTriggerAction = mapping.PgTriggerAction ?? "Always";
+            foreach (ComboBoxItem item in cmbPgTriggerAction.Items)
+            {
+                if ((string)item.Tag == pgTriggerAction)
+                {
+                    cmbPgTriggerAction.SelectedItem = item;
+                    break;
+                }
+            }
+            if (cmbPgTriggerAction.SelectedItem == null)
+                cmbPgTriggerAction.SelectedIndex = 0;
+
+            // PG ShowErrorOnDisplay setzen
+            chkPgShowErrorOnDisplay.IsChecked = mapping.PgShowErrorOnDisplay;
+
             UpdatePgControlsEnabled();
         }
 
@@ -444,7 +477,7 @@ namespace Virtuagym.CheckIn.WPF
         private CheckinClientMapping BuildMapping()
         {
             string inputType = (cmbMappingInputType.SelectedItem as ComboBoxItem)?.Tag?.ToString()
-                ?? CheckinClientMapping.InputTypeRfid;
+                ?? nameof(HardwareInputType.USBReader);
             int cameraIndex = (cmbMappingCamera.SelectedItem as ComboBoxItem)?.Tag is int ci ? ci : 0;
             long doubleScanThreshold = long.TryParse(
                 (cmbDoubleScanThreshold.SelectedItem as ComboBoxItem)?.Tag?.ToString(), out long ds)
@@ -473,6 +506,8 @@ namespace Virtuagym.CheckIn.WPF
                     System.Globalization.NumberStyles.Any,
                     System.Globalization.CultureInfo.InvariantCulture,
                     out double rt) ? rt : 0.05,
+                RelayTriggerAction = (cmbRelayTriggerAction.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Always",
+                RelayShowErrorOnDisplay = chkRelayShowErrorOnDisplay.IsChecked == true,
                 DoubleScanThresholdMs = doubleScanThreshold,
                 DuplicateTimeoutSeconds = int.TryParse(txtDuplicateTimeoutSeconds.Text, out int dts) && dts >= 0 ? dts : null,
                 RepeatTimeMs = repeatTimeMs,
@@ -497,7 +532,9 @@ namespace Virtuagym.CheckIn.WPF
                 PgConditionGateServiceId = (cmbPgConditionGate.SelectedItem as PgGateEntry)?.ServiceId ?? "",
                 PgConditionGateName = (cmbPgConditionGate.SelectedItem as PgGateEntry)?.Name ?? "",
                 PgConditionTimeFrom = txtPgConditionTimeFrom.Text?.Trim() ?? "",
-                PgConditionTimeTo = txtPgConditionTimeTo.Text?.Trim() ?? ""
+                PgConditionTimeTo = txtPgConditionTimeTo.Text?.Trim() ?? "",
+                PgTriggerAction = (cmbPgTriggerAction.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Always",
+                PgShowErrorOnDisplay = chkPgShowErrorOnDisplay.IsChecked == true,
             };
         }
 
@@ -522,11 +559,11 @@ namespace Virtuagym.CheckIn.WPF
                 return;
 
             string inputType = (cmbMappingInputType.SelectedItem as ComboBoxItem)?.Tag?.ToString()
-                ?? CheckinClientMapping.InputTypeRfid;
+                ?? nameof(HardwareInputType.USBReader);
 
-            bool isRfid = inputType == CheckinClientMapping.InputTypeRfid;
-            bool isCcid = inputType == CheckinClientMapping.InputTypeCcid;
-            bool isQrCode = inputType == CheckinClientMapping.InputTypeQrCode;
+            bool isRfid = inputType == nameof(HardwareInputType.USBReader);
+            bool isCcid = inputType == nameof(HardwareInputType.CCID);
+            bool isQrCode = inputType == nameof(HardwareInputType.QRCode);
 
             // RFID und CCID verwenden beide DeviceID, QR-Code verwendet Kamera
             lblDeviceId.Visibility = (isRfid || isCcid) ? Visibility.Visible : Visibility.Collapsed;
@@ -584,6 +621,8 @@ namespace Virtuagym.CheckIn.WPF
             if (cmbMappingRelayBaudRate != null) cmbMappingRelayBaudRate.IsEnabled = enabled;
             if (cmbMappingRelayNumber != null) cmbMappingRelayNumber.IsEnabled = enabled;
             if (cmbMappingRelayTriggerTime != null) cmbMappingRelayTriggerTime.IsEnabled = enabled;
+            if (cmbRelayTriggerAction != null) cmbRelayTriggerAction.IsEnabled = enabled;
+            if (chkRelayShowErrorOnDisplay != null) chkRelayShowErrorOnDisplay.IsEnabled = enabled;
             if (btnTestMappingRelay != null) btnTestMappingRelay.IsEnabled = enabled;
         }
 
@@ -594,6 +633,8 @@ namespace Virtuagym.CheckIn.WPF
             bool enabled = chkPgEnabled.IsChecked == true;
             if (cmbPgGate != null) cmbPgGate.IsEnabled = enabled;
             if (cmbPgTriggerTime != null) cmbPgTriggerTime.IsEnabled = enabled;
+            if (cmbPgTriggerAction != null) cmbPgTriggerAction.IsEnabled = enabled;
+            if (chkPgShowErrorOnDisplay != null) chkPgShowErrorOnDisplay.IsEnabled = enabled;
             if (btnTestPg != null) btnTestPg.IsEnabled = enabled;
             if (cmbPgConditionMode != null) cmbPgConditionMode.IsEnabled = enabled;
             UpdatePgConditionGateEnabled();
@@ -1212,15 +1253,15 @@ namespace Virtuagym.CheckIn.WPF
         private void btnMappingSave_Click(object sender, RoutedEventArgs e)
         {
             string inputType = (cmbMappingInputType.SelectedItem as ComboBoxItem)?.Tag?.ToString()
-                ?? CheckinClientMapping.InputTypeRfid;
+                ?? nameof(HardwareInputType.USBReader);
 
-            if (inputType == CheckinClientMapping.InputTypeRfid && string.IsNullOrWhiteSpace(GetSelectedDeviceId()))
+            if (inputType == nameof(HardwareInputType.USBReader) && string.IsNullOrWhiteSpace(GetSelectedDeviceId()))
             {
                 MessageBox.Show(L.T("EditMapping_Validation_SelectDevice"), L.T("EditMapping_Validation_Title"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            if (inputType == CheckinClientMapping.InputTypeQrCode && cmbMappingCamera.SelectedItem == null)
+            if (inputType == nameof(HardwareInputType.QRCode) && cmbMappingCamera.SelectedItem == null)
             {
                 MessageBox.Show(L.T("EditMapping_Validation_SelectCamera"), L.T("EditMapping_Validation_Title"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;

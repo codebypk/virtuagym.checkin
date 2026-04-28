@@ -37,6 +37,7 @@ namespace Virtuagym.CheckIn.WPF
 
         private readonly ObservableCollection<QrCameraPreviewTile> _qrCameraPreviewTiles = new ObservableCollection<QrCameraPreviewTile>();
         private readonly Dictionary<string, QrCameraPreviewTile> _qrCameraPreviewByLabel = new Dictionary<string, QrCameraPreviewTile>(StringComparer.OrdinalIgnoreCase);
+        private DispatcherTimer _hardwareErrorTimer;
 
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -384,6 +385,34 @@ namespace Virtuagym.CheckIn.WPF
         private enum OverlayIconType { None, Success, Error, Warning, DoubleScan }
 
         /// <summary>
+        /// Zeigt eine separate Hardware-Fehlerbox (z.B. Relay oder PG-Tor konnte nicht geöffnet werden).
+        /// Wird nach dem Idle-Timeout automatisch ausgeblendet.
+        /// </summary>
+        public void ShowHardwareError(string message, string? readerName = null)
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(new Action<string, string?>(ShowHardwareError), message, readerName);
+                return;
+            }
+
+            txtHardwareError.Text = message ?? "";
+            borderHardwareError.Visibility = Visibility.Visible;
+
+            _hardwareErrorTimer?.Stop();
+            _hardwareErrorTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(IdleTimeoutMs)
+            };
+            _hardwareErrorTimer.Tick += (_, _) =>
+            {
+                borderHardwareError.Visibility = Visibility.Collapsed;
+                _hardwareErrorTimer.Stop();
+            };
+            _hardwareErrorTimer.Start();
+        }
+
+        /// <summary>
         /// Zeigt das passende Overlay-Icon am Avatar an (Success, Error, Warning, DoubleScan).
         /// Verbessert die Usability durch visuelles Feedback am Avatar.
         /// </summary>
@@ -575,7 +604,7 @@ namespace Virtuagym.CheckIn.WPF
                 return;
 
             foreach (var mapping in mappings
-                .Where(m => string.Equals(m.InputType, CheckinClientMapping.InputTypeQrCode, StringComparison.OrdinalIgnoreCase))
+                .Where(m => string.Equals(m.InputType, nameof(HardwareInputType.QRCode), StringComparison.OrdinalIgnoreCase))
                 .OrderBy(m => m.CameraIndex))
             {
                 var label = !string.IsNullOrWhiteSpace(mapping.Name) ? mapping.Name : string.Format(L.T("Welcome_Camera_FallbackLabel"), mapping.CameraIndex);

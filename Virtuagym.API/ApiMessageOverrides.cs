@@ -1,3 +1,5 @@
+using System;
+
 namespace Virtuagym.API
 {
     /// <summary>
@@ -30,6 +32,11 @@ namespace Virtuagym.API
 
         /// <summary>Member is not active. {0} = member name.</summary>
         public string MsgMemberNotActive { get; set; }
+
+        /// <summary>
+        /// Formats threshold text from milliseconds, e.g. "1 minute", "2 Minuten", "30 Sekunden".
+        /// </summary>
+        public Func<long, string> FormatDoubleScanThreshold { get; set; }
 
         /// <summary>
         /// Returns the override value, or the fallback if the override is null/empty.

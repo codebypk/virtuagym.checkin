@@ -65,6 +65,12 @@ public sealed class WebCheckinService
     /// </summary>
     public event Action<DeviceAvailabilityInfo>? OnDeviceAvailabilityChanged;
 
+    /// <summary>
+    /// Raised when a hardware trigger (relay / PG gate) failed to open the door.
+    /// Parameter: localized error message.
+    /// </summary>
+    public event Action<string>? OnHardwareError;
+
     public WebCheckinService(WebLogService logService, WebVirtuagymApiServiceFactory apiFactory)
     {
         _logService = logService;
@@ -79,6 +85,9 @@ public sealed class WebCheckinService
 
     /// <summary>Raises <see cref="OnCameraPreview"/>.</summary>
     public void RaiseCameraPreview(CameraPreviewInfo info) => OnCameraPreview?.Invoke(info);
+
+    /// <summary>Raises <see cref="OnHardwareError"/>.</summary>
+    public void RaiseHardwareError(string message) => OnHardwareError?.Invoke(message);
 
     /// <summary>Raises <see cref="OnDeviceAvailabilityChanged"/>.</summary>
     public void RaiseDeviceAvailabilityChanged(DeviceAvailabilityInfo info)

@@ -24,6 +24,7 @@ namespace Virtuagym.API.Services
         private readonly object _lock = new object();
         private readonly JsonSerializerAdapter _json;
         private CacheData _data;
+        private Dictionary<string, MemberCacheEntry> _rfidIndex = new(StringComparer.OrdinalIgnoreCase);
         private bool _disposed;
 
         /// <summary>Raised when a sync operation is started.</summary>
@@ -79,6 +80,22 @@ namespace Virtuagym.API.Services
 
                 if (_data.PendingCheckins == null)
                     _data.PendingCheckins = new List<PendingCheckinEntry>();
+
+                RebuildRfidIndex();
+            }
+        }
+
+        /// <summary>
+        /// Rebuilds the RFID lookup index from the current member list.
+        /// Must be called inside the lock.
+        /// </summary>
+        private void RebuildRfidIndex()
+        {
+            _rfidIndex = new Dictionary<string, MemberCacheEntry>(_data.Members.Count, StringComparer.OrdinalIgnoreCase);
+            foreach (var m in _data.Members)
+            {
+                if (!string.IsNullOrEmpty(m.RfidTag))
+                    _rfidIndex[m.RfidTag] = m;
             }
         }
 
@@ -110,9 +127,7 @@ namespace Virtuagym.API.Services
 
             lock (_lock)
             {
-                var entry = _data.Members.FirstOrDefault(m =>
-                    string.Equals(m.RfidTag, rfidTag, StringComparison.OrdinalIgnoreCase));
-                return entry?.Clone();
+                return _rfidIndex.TryGetValue(rfidTag, out var entry) ? entry.Clone() : null;
             }
         }
 
@@ -323,7 +338,13 @@ namespace Virtuagym.API.Services
                 var entry = _data.Members.FirstOrDefault(m => m.MemberId == memberId);
                 if (entry != null)
                 {
+                    // Remove old index entry
+                    if (!string.IsNullOrEmpty(entry.RfidTag))
+                        _rfidIndex.Remove(entry.RfidTag);
                     entry.RfidTag = rfidTag;
+                    // Add new index entry
+                    if (!string.IsNullOrEmpty(rfidTag))
+                        _rfidIndex[rfidTag] = entry;
                 }
             }
             SaveToDisk();
@@ -473,6 +494,10 @@ namespace Virtuagym.API.Services
                     // INSERT: rfid_tag is set initially
                     _data.Members.Add(entry);
                 }
+
+                // Update RFID index
+                if (!string.IsNullOrEmpty(entry.RfidTag))
+                    _rfidIndex[entry.RfidTag] = _data.Members.FirstOrDefault(m => m.MemberId == entry.MemberId) ?? entry;
             }
         }
 
@@ -742,6 +767,7 @@ namespace Virtuagym.API.Services
                     if (removedCount > 0)
                         _data.Meta["last_sync_removed"] = removedCount.ToString();
                 }
+                RebuildRfidIndex();
                 SaveToDisk();
 
                 string msg = count + " members synchronized (" + visitCount + " active visits"
@@ -797,6 +823,9 @@ namespace Virtuagym.API.Services
             bool removed;
             lock (_lock)
             {
+                var entry = _data.Members.FirstOrDefault(m => m.MemberId == memberId);
+                if (entry != null && !string.IsNullOrEmpty(entry.RfidTag))
+                    _rfidIndex.Remove(entry.RfidTag);
                 removed = _data.Members.RemoveAll(m => m.MemberId == memberId) > 0;
             }
             if (removed)
@@ -813,6 +842,7 @@ namespace Virtuagym.API.Services
             {
                 _data.Members.Clear();
                 _data.Meta.Clear();
+                _rfidIndex.Clear();
             }
             SaveToDisk();
         }

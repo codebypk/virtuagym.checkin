@@ -27,6 +27,7 @@ public sealed class AppSettings : IAppSettings
     public string JablotronApiUrl { get; set; } = "https://api.jablonet.net/api/2.4";
     public string JablotronApiUsername { get; set; } = "";
     public string JablotronApiPassword { get; set; } = "";
+    public string JablotronApiPinCode { get; set; } = "";
 
     // --- Welcome Screen ---
     public bool ShowClubLogo { get; set; }
@@ -69,6 +70,12 @@ public sealed class AppSettings : IAppSettings
     public string CacheSyncMode { get; set; } = "Interval";
     public string CacheSyncDailyTime { get; set; } = "02:00";
     public int CreditsCacheTtlMinutes { get; set; } = 60;
+
+    /// <summary>
+    /// Regex pattern to extract credit amount from v0 API employee_message.
+    /// Must contain one capture group for the numeric value. Empty = disabled.
+    /// </summary>
+    public string CreditParsePattern { get; set; } = @"(\d+)\s*Guthabenpunkte";
 
     // --- Sounds ---
     public string SoundCheckinSuccess { get; set; } = "sounds/login_succes.wav";

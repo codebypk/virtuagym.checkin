@@ -18,6 +18,7 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="200"/>
@@ -35,6 +36,9 @@
                             <TextBlock x:Name="lblJablotronApiPassword" Grid.Row="2" Grid.Column="0" Text="Passwort:" VerticalAlignment="Center" Margin="0,5"/>
                             <PasswordBox x:Name="txtJablotronApiPassword" Grid.Row="2" Grid.Column="1" Margin="0,5"
                                          ToolTip="Passwort f&#252;r die Jablotron Cloud API."/>
+
+                            <TextBlock x:Name="lblJablotronApiPinCode" Grid.Row="3" Grid.Column="0" Text="PIN-Code:" VerticalAlignment="Center" Margin="0,5"/>
+                            <PasswordBox x:Name="txtJablotronApiPinCode" Grid.Row="3" Grid.Column="1" Margin="0,5" ToolTip="PIN-Code für die Jablotron Cloud API."/>
                         </Grid>
                     </GroupBox>
 

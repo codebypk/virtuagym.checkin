@@ -237,7 +237,7 @@ namespace Virtuagym.CheckIn.WPF
                     if (string.IsNullOrWhiteSpace(mapping.CheckinKey))
                         continue;
 
-                    if (mapping.InputType == CheckinClientMapping.InputTypeQrCode)
+                    if (mapping.InputType == nameof(HardwareInputType.QRCode))
                     {
                         // Backend aus Mapping parsen (Standard: ANY)
                         if (!Enum.TryParse<OpenCvSharp.VideoCaptureAPIs>(mapping.CameraBackend, out var captureApi))
@@ -252,7 +252,7 @@ namespace Virtuagym.CheckIn.WPF
                         m_qrCodeScanners.Add(scanner);
                         WriteToLog(L.T("Log_QrScannerLoadedInfo") + ": " + (mapping.Name ?? L.T("Log_Camera") + " " + mapping.CameraIndex), Constants.LogInfo);
                     }
-                    else if (mapping.InputType == CheckinClientMapping.InputTypeCcid)
+                    else if (mapping.InputType == nameof(HardwareInputType.CCID))
                     {
                         if (!string.IsNullOrWhiteSpace(mapping.DeviceID))
                         {
@@ -381,7 +381,7 @@ namespace Virtuagym.CheckIn.WPF
         private static bool MappingEquals(CheckinClientMapping a, CheckinClientMapping b)
         {
             if (a.InputType != b.InputType) return false;
-            if (a.InputType == CheckinClientMapping.InputTypeQrCode)
+            if (a.InputType == nameof(HardwareInputType.QRCode))
                 return a.CameraIndex == b.CameraIndex && a.CameraBackend == b.CameraBackend;
             return a.DeviceID == b.DeviceID && a.HidProfile == b.HidProfile;
         }
@@ -389,7 +389,7 @@ namespace Virtuagym.CheckIn.WPF
         // Helper to stop a device by mapping
         private void StopDevice(CheckinClientMapping mapping)
         {
-            if (mapping.InputType == CheckinClientMapping.InputTypeQrCode)
+            if (mapping.InputType == nameof(HardwareInputType.QRCode))
             {
                 var scanner = m_qrCodeScanners.FirstOrDefault(s => s.MappingUuid == mapping.Uuid);
                 if (scanner != null)
@@ -399,7 +399,7 @@ namespace Virtuagym.CheckIn.WPF
                     WriteToLog(string.Format(L.T("Log_QrScannerStopped"), mapping.Name ?? string.Format(L.T("Welcome_Camera_FallbackLabel"), mapping.CameraIndex)), Constants.LogInfo);
                 }
             }
-            else if (mapping.InputType == CheckinClientMapping.InputTypeCcid)
+            else if (mapping.InputType == nameof(HardwareInputType.CCID))
             {
                 var ccid = m_ccidReaders.FirstOrDefault(r => r.MappingUuid == mapping.Uuid);
                 if (ccid != null)
@@ -427,7 +427,7 @@ namespace Virtuagym.CheckIn.WPF
             var hwLogger = new HardwareLoggerAdapter(this);
             try
             {
-                if (mapping.InputType == CheckinClientMapping.InputTypeQrCode)
+                if (mapping.InputType == nameof(HardwareInputType.QRCode))
                 {
                     if (!Enum.TryParse<OpenCvSharp.VideoCaptureAPIs>(mapping.CameraBackend, out var captureApi))
                         captureApi = OpenCvSharp.VideoCaptureAPIs.ANY;
@@ -441,7 +441,7 @@ namespace Virtuagym.CheckIn.WPF
                     m_qrCodeScanners.Add(scanner);
                     WriteToLog(string.Format(L.T("Log_QrScannerStarted"), mapping.Name ?? string.Format(L.T("Welcome_Camera_FallbackLabel"), mapping.CameraIndex)), Constants.LogInfo);
                 }
-                else if (mapping.InputType == CheckinClientMapping.InputTypeCcid)
+                else if (mapping.InputType == nameof(HardwareInputType.CCID))
                 {
                     if (!string.IsNullOrWhiteSpace(mapping.DeviceID))
                     {

@@ -190,7 +190,7 @@ namespace Virtuagym.CheckIn.WPF.Controls
                         simLogger.WriteToLog($"[SIM] {L.T("DeveloperSimulation_InvalidMemberId")}", Constants.LogError);
                     }
                 }
-                else if (mapping.InputType == CheckinClientMapping.InputTypeQrCode)
+                else if (mapping.InputType == nameof(HardwareInputType.QRCode))
                 {
                     await handler.PerformCheckinAsync(cardId, $"SIM-QR {mapping.Name ?? "QR"}");
                 }

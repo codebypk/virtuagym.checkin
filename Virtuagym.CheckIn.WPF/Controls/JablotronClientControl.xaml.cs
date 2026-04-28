@@ -76,6 +76,7 @@ namespace Virtuagym.CheckIn.WPF.Controls
             txtJablotronApiUrl.Text = Settings.Default.JablotronApiUrl;
             txtJablotronApiUsername.Text = Settings.Default.JablotronApiUsername;
             txtJablotronApiPassword.Password = Settings.Default.JablotronApiPassword;
+            txtJablotronApiPinCode.Password = Settings.Default.JablotronApiPinCode;
             developerJablotronControl.LoadSettings();
         }
 
@@ -84,6 +85,7 @@ namespace Virtuagym.CheckIn.WPF.Controls
             updateSetting("JablotronApiUrl", txtJablotronApiUrl.Text);
             updateSetting("JablotronApiUsername", txtJablotronApiUsername.Text);
             updateSetting("JablotronApiPassword", txtJablotronApiPassword.Password);
+            updateSetting("JablotronApiPinCode", txtJablotronApiPinCode.Password);
             developerJablotronControl.SaveSettings(updateSetting);
         }
 

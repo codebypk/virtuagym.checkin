@@ -35,6 +35,7 @@ public sealed class HardwareScannerService : IHostedService, IDisposable
     private MemberCacheService? _memberCache;
     private System.Threading.Timer? _hotplugTimer;
     private int _lastActiveDeviceCount;
+    private int _lastMappingsHash;
     private volatile bool _disposed;
 
     /// <summary>
@@ -93,6 +94,17 @@ public sealed class HardwareScannerService : IHostedService, IDisposable
             {
                 CameraDiscoveryService.InvalidateCache();
                 var settings = Settings;
+
+                // Skip JSON deserialization if mappings haven't changed
+                var mappingsJson = settings.CheckinClientMappings ?? "";
+                var currentHash = mappingsJson.GetHashCode();
+                if (currentHash == _lastMappingsHash && _activeMappings.Count > 0)
+                {
+                    CheckPhysicalDeviceAvailability();
+                    return;
+                }
+                _lastMappingsHash = currentHash;
+
                 var newMappings = LoadMappings(settings) ?? new List<CheckinClientMapping>();
 
                 // Only consider mappings with a CheckinKey
@@ -160,7 +172,7 @@ public sealed class HardwareScannerService : IHostedService, IDisposable
     private static bool MappingEquals(CheckinClientMapping a, CheckinClientMapping b)
     {
         if (a.InputType != b.InputType) return false;
-        if (a.InputType == CheckinClientMapping.InputTypeQrCode)
+        if (a.InputType == nameof(HardwareInputType.QRCode))
             return a.CameraIndex == b.CameraIndex && a.CameraBackend == b.CameraBackend;
         return a.DeviceID == b.DeviceID && a.HidProfile == b.HidProfile;
     }
@@ -242,7 +254,7 @@ public sealed class HardwareScannerService : IHostedService, IDisposable
     // Helper to stop a device by mapping
     private void StopDevice(CheckinClientMapping mapping)
     {
-        if (mapping.InputType == CheckinClientMapping.InputTypeQrCode)
+        if (mapping.InputType == nameof(HardwareInputType.QRCode))
         {
             var scanner = _qrScanners.FirstOrDefault(s => s.MappingUuid == mapping.Uuid);
             if (scanner != null)
@@ -252,7 +264,7 @@ public sealed class HardwareScannerService : IHostedService, IDisposable
                 _log.WriteToLog($"QR-Scanner gestoppt: {mapping.Name ?? $"Kamera {mapping.CameraIndex}"}", Constants.LogInfo);
             }
         }
-        else if (mapping.InputType == CheckinClientMapping.InputTypeCcid)
+        else if (mapping.InputType == nameof(HardwareInputType.CCID))
         {
             var ccid = _ccidReaders.FirstOrDefault(r => r.MappingUuid == mapping.Uuid);
             if (ccid != null)
@@ -282,7 +294,7 @@ public sealed class HardwareScannerService : IHostedService, IDisposable
         var soundPlayer = new ServerSoundPlayer(welcomeDisplay);
         try
         {
-            if (mapping.InputType == CheckinClientMapping.InputTypeQrCode)
+            if (mapping.InputType == nameof(HardwareInputType.QRCode))
             {
                 if (!Enum.TryParse<VideoCaptureAPIs>(mapping.CameraBackend, out var captureApi))
                     captureApi = VideoCaptureAPIs.ANY;
@@ -298,7 +310,7 @@ public sealed class HardwareScannerService : IHostedService, IDisposable
                 _qrScanners.Add(scanner);
                 _log.WriteToLog($"QR-Scanner gestartet: {mapping.Name ?? $"Kamera {mapping.CameraIndex}"}", Constants.LogInfo);
             }
-            else if (mapping.InputType == CheckinClientMapping.InputTypeCcid)
+            else if (mapping.InputType == nameof(HardwareInputType.CCID))
             {
                 if (!string.IsNullOrWhiteSpace(mapping.DeviceID))
                 {

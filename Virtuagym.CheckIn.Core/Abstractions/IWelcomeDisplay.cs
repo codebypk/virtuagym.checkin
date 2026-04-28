@@ -21,4 +21,12 @@ public interface IWelcomeDisplay
     /// <param name="clientMessages">Messages to display.</param>
     /// <param name="readerName">Name of the input device.</param>
     void ShowCheckinResult(string status, string name, string? avatarUrl, string[] clientMessages, string? readerName = null);
+
+    /// <summary>
+    /// Displays a hardware error notification (e.g. relay or PG gate failed to trigger).
+    /// Shown as a separate error box alongside the check-in result.
+    /// </summary>
+    /// <param name="message">Localized error message to display.</param>
+    /// <param name="readerName">Name of the input device.</param>
+    void ShowHardwareError(string message, string? readerName = null);
 }

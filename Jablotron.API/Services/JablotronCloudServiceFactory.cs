@@ -13,11 +13,12 @@ namespace Jablotron.API.Services
         private readonly string _apiBaseUrl;
         private readonly string _username;
         private readonly string _password;
+        private readonly string _pinCode;
         private readonly object _lock = new();
         private JablotronCloudService _instance;
         private bool _disposed;
 
-        public JablotronCloudServiceFactory(string apiBaseUrl, string username, string password)
+        public JablotronCloudServiceFactory(string apiBaseUrl, string username, string password, string pinCode)
         {
             if (string.IsNullOrWhiteSpace(apiBaseUrl)) throw new ArgumentException("Required.", nameof(apiBaseUrl));
             if (string.IsNullOrWhiteSpace(username)) throw new ArgumentException("Required.", nameof(username));
@@ -26,6 +27,7 @@ namespace Jablotron.API.Services
             _apiBaseUrl = apiBaseUrl;
             _username = username;
             _password = password;
+            _pinCode = pinCode;
         }
 
         /// <summary>
@@ -41,7 +43,7 @@ namespace Jablotron.API.Services
             {
                 if (_instance == null)
                 {
-                    _instance = new JablotronCloudService(_apiBaseUrl, _username, _password);
+                    _instance = new JablotronCloudService(_apiBaseUrl, _username, _password,_pinCode);
                     _instance.PerformLogin();
                 }
                 return _instance;

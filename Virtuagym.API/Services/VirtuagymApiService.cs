@@ -406,10 +406,15 @@ namespace Virtuagym.API.Services
                 && lookup.LastCheckInTimestamp > 0
                 && (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - lookup.LastCheckInTimestamp) < doubleScanThresholdMs)
             {
+
+                // Use the format from the function, or fallback to a default format (minutes/seconds)
                 long minutes = doubleScanThresholdMs / 60_000;
-                string thresholdDisplay = doubleScanThresholdMs >= 60_000
+                string thresholdDisplay = m.FormatDoubleScanThreshold?.Invoke(doubleScanThresholdMs)
+                ?? (doubleScanThresholdMs >= 60_000
                     ? minutes + (minutes == 1 ? " minute" : " minutes")
-                    : (doubleScanThresholdMs / 1_000) + " seconds";
+                    : (doubleScanThresholdMs / 1_000) + " seconds");
+
+
                 string msg = string.Format(
                     ApiMessageOverrides.Resolve(m.MsgDoubleScanBlocked, ApiConstants.MsgDoubleScanBlocked),
                     thresholdDisplay);

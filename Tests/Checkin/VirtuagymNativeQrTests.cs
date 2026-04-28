@@ -23,7 +23,7 @@ namespace Tests.Checkin
             var mapping = new CheckinClientMapping
             {
                 Name = ReaderName,
-                InputType = CheckinClientMapping.InputTypeQrCode,
+                InputType = nameof(HardwareInputType.QRCode),
                 CheckinKey = checkinKey
             };
             mapping.EnsureUuid();

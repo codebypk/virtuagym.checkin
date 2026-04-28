@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Virtuagym.API.Services;
 using Virtuagym.CheckIn.Core.Abstractions;
@@ -132,9 +133,9 @@ public class CheckinCreditService
     }
 
     /// <summary>
-    /// Decrements credits locally in offline mode.
-    /// </summary>
-    public void DecrementOffline(CachedMemberInfo cachedMember, string? serviceId, string displayName)
+    /// Decrements credits locally
+    /// </summary> 
+    public void DecrementCredits(CachedMemberInfo cachedMember, string serviceId, string displayName)
     {
         if (string.IsNullOrWhiteSpace(serviceId))
             return;
@@ -146,5 +147,38 @@ public class CheckinCreditService
         int newAmount = Math.Max(0, offlineCredit.CreditAmount - 1);
         _memberCache?.UpdateCredits(cachedMember.MemberId, newAmount, false, serviceId);
         _logger.WriteToLog($"[{displayName}] {L.T("Log_CreditsOfflineDecremented")}: {offlineCredit.CreditAmount} → {newAmount} ({serviceId})", Constants.LogWarning);
+    }
+
+    /// <summary>
+    /// Tries to extract credit amount from a v0 employee_message using the configured regex pattern.
+    /// Returns false if the pattern is empty or no match is found.
+    /// </summary>
+    public static bool TryParseCreditFromEmployeeMessage(string[]? employeeMessages, string? pattern, out int creditAmount)
+    {
+        creditAmount = 0;
+        if (employeeMessages == null || string.IsNullOrWhiteSpace(pattern))
+            return false;
+
+        try
+        {
+            var regex = new Regex(pattern, RegexOptions.None, TimeSpan.FromMilliseconds(100));
+
+            foreach (var msg in employeeMessages)
+            {
+                if (string.IsNullOrWhiteSpace(msg)) continue;
+
+                var match = regex.Match(msg);
+                if (match.Success && match.Groups.Count > 1
+                    && int.TryParse(match.Groups[1].Value, out int parsed))
+                {
+                    creditAmount = parsed;
+                    return true;
+                }
+            }
+        }
+        catch (RegexMatchTimeoutException) { }
+        catch (ArgumentException) { }
+
+        return false;
     }
 }

@@ -184,7 +184,7 @@
         IReadOnlyList<CameraDeviceInfo>? cameras = null;
         foreach (var mapping in _mappings)
         {
-            if (mapping.InputType == CheckinClientMapping.InputTypeQrCode)
+            if (mapping.InputType == nameof(HardwareInputType.QRCode))
             {
                 cameras ??= await CameraDiscoveryService.GetCamerasAsync();
                 var cam = cameras.FirstOrDefault(c => c.Index == mapping.CameraIndex);

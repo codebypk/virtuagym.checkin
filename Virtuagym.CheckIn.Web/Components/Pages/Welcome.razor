@@ -98,6 +98,14 @@
         </div>
     }
 
+    @if (_showHardwareError)
+    {
+        <div id="hardware-error-box" style="position:fixed;right:50px;top:50%;transform:translateY(-50%);z-index:200;background:rgba(123,26,26,0.8);border:1.5px solid #AA2222;border-radius:14px;padding:14px 18px;min-width:280px;max-width:480px;display:flex;align-items:center;gap:10px;">
+            <span style="font-size:22px;color:#FF6666;flex-shrink:0;">&#9888;</span>
+            <span style="color:#FF8888;font-size:15px;">@_hardwareErrorMessage</span>
+        </div>
+    }
+
     @{
         var unavailableDevices = _deviceAvailability
             .Where(kv => !kv.Value && MatchesDeviceFilter(kv.Key))
@@ -176,6 +184,11 @@
     private bool _disposed;
     private bool _soundBlocked;
 
+    // Hardware error state
+    private bool _showHardwareError;
+    private string _hardwareErrorMessage = "";
+    private System.Timers.Timer? _hardwareErrorTimer;
+
     // Camera previews
     private readonly Dictionary<string, string> _cameraPreviews = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> _cameraStatuses = new(StringComparer.OrdinalIgnoreCase);
@@ -203,6 +216,7 @@
         CheckinService.OnCheckinResult += HandleCheckinResult;
         CheckinService.OnShowLoader += HandleShowLoader;
         CheckinService.OnDeviceAvailabilityChanged += HandleDeviceAvailabilityChanged;
+        CheckinService.OnHardwareError += HandleHardwareError;
 
         foreach (var availability in CheckinService.GetDeviceAvailabilitySnapshot())
         {
@@ -216,6 +230,19 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        /*
+        Show Hardware Error Message if URL contains testhw=1 query parameter (for testing purposes)
+        if (firstRender)
+        {
+            var uri = new Uri(Navigation.Uri);
+            if (uri.Query.Contains("testhw=1"))
+            {
+                _hardwareErrorMessage = "Türöffnung fehlgeschlagen: Relay antwortet nicht.";
+                _showHardwareError = true;
+            }
+        }
+        */
+
         if (!firstRender)
             return;
 
@@ -286,7 +313,7 @@
             var serializer = new JsonSerializerAdapter();
             var mappings = serializer.Deserialize<List<CheckinClientMapping>>(json);
             return mappings?
-                .Where(m => string.Equals(m.InputType, CheckinClientMapping.InputTypeQrCode, StringComparison.OrdinalIgnoreCase))
+                .Where(m => string.Equals(m.InputType, nameof(HardwareInputType.QRCode), StringComparison.OrdinalIgnoreCase))
                 .OrderBy(m => m.CameraIndex)
                 .ToList() ?? [];
         }
@@ -421,6 +448,34 @@
         catch { /* Component may be disposed */ }
     }
 
+    private async void HandleHardwareError(string message)
+    {
+        if (_disposed) return;
+        try
+        {
+            await InvokeAsync(() =>
+            {
+                _hardwareErrorMessage = message;
+                _showHardwareError = true;
+                StateHasChanged();
+
+                _hardwareErrorTimer?.Dispose();
+                _hardwareErrorTimer = new System.Timers.Timer(6000);
+                _hardwareErrorTimer.AutoReset = false;
+                _hardwareErrorTimer.Elapsed += async (_, _) =>
+                {
+                    await InvokeAsync(() =>
+                    {
+                        _showHardwareError = false;
+                        StateHasChanged();
+                    });
+                };
+                _hardwareErrorTimer.Start();
+            });
+        }
+        catch { /* Component may be disposed */ }
+    }
+
     public void Dispose()
     {
         _disposed = true;
@@ -428,6 +483,8 @@
         CheckinService.OnShowLoader -= HandleShowLoader;
         CheckinService.OnCameraPreview -= HandleCameraPreview;
         CheckinService.OnDeviceAvailabilityChanged -= HandleDeviceAvailabilityChanged;
+        CheckinService.OnHardwareError -= HandleHardwareError;
         _idleTimer?.Dispose();
+        _hardwareErrorTimer?.Dispose();
     }
 }
