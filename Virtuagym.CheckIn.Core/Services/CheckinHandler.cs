@@ -139,7 +139,13 @@ public class CheckinHandler
             if (RejectIfMemberInactive(cachedMember, displayName))
                 return;
 
-            if (await RejectIfInsufficientCreditsAsync(cachedMember, displayName))
+            // Credits check only applies to check-in (i.e. member has no active visit)
+            bool isCheckout = false;
+            var offlineDevData = cachedMember?.GetDeviceData(_mapping.DeviceID);
+            if (offlineDevData != null)
+                isCheckout = offlineDevData.CheckInTimestamp > 0 && offlineDevData.CheckOutTimestamp == 0;
+
+            if (await RejectIfInsufficientCreditsAsync(cachedMember, displayName, isCheckout))
                 return;
 
             if (ForceOffline)
@@ -297,17 +303,28 @@ public class CheckinHandler
         return true;
     }
 
-    private Task<bool> RejectIfInsufficientCreditsAsync(CachedMemberInfo? cachedMember, string displayName)
+    private async Task<bool> RejectIfInsufficientCreditsAsync(CachedMemberInfo? cachedMember, string displayName, bool isCheckout)
     {
         bool requireCredits = !string.IsNullOrWhiteSpace(_mapping.CreditServiceId);
-        if (!requireCredits || cachedMember == null || cachedMember.MemberId == 0)
-            return Task.FromResult(false);
+        if (!requireCredits || cachedMember == null || cachedMember.MemberId == 0 || !isCheckout)
+            return false;
 
         string serviceId = _mapping.CreditServiceId ?? "";
 
+        // TTL <= 0 → don't block, let the API decide (no cache check)
+        if (_settings.CreditsCacheTtlMinutes <= 0)
+        {
+            _logger.WriteToLog($"[{displayName}] Credits TTL deaktiviert – API entscheidet ({serviceId})", Constants.LogInfo);
+            return false;
+        }
+
+        // Refresh cache if stale (async) – but don't block the check-in flow
+        if (IsCreditCacheStale(cachedMember))
+            await _creditService.RefreshIfStaleAsync(cachedMember, serviceId,_mapping.CreditClubId,_mapping.CheckinKey, displayName);
+
         // Only check locally cached credits – NO separate API call
         if (!_creditService.HasInsufficientCredits(cachedMember, serviceId, out var serviceName, out var creditAmount, out var minCreditsRequired))
-            return Task.FromResult(false);
+            return false;
 
         // Insufficient according to cache – only reject if cache is fresh
         int ttlMinutes = Math.Max(1, _settings.CreditsCacheTtlMinutes);
@@ -320,7 +337,7 @@ public class CheckinHandler
         {
             // Stale → let the API decide, don't block
             _logger.WriteToLog($"[{displayName}] Credits stale – API entscheidet ({serviceId}, cached={creditAmount})", Constants.LogInfo);
-            return Task.FromResult(false);
+            return false;
         }
 
         string creditMsg = string.Format(
@@ -332,7 +349,7 @@ public class CheckinHandler
             : new[] { creditMsg };
         ShowReject(displayName, GetMemberFullName(cachedMember), cachedMember.Avatar, messages,
             $"[{displayName}] {L.T("Log_InsufficientCredits")}: {cachedMember.MemberId} ({serviceId}, {creditAmount}/{minCreditsRequired})");
-        return Task.FromResult(true);
+        return true;
     }
 
     private async Task<CheckinToggleResult> ExecuteCheckinToggleAsync(Card rfidTag, CachedMemberInfo? cachedMember)
@@ -652,9 +669,13 @@ public class CheckinHandler
 
     /// <summary>
     /// Returns true when the credit cache has never been synced or the TTL has expired.
+    /// TTL <= 0 means local credit cache freshness is disabled.
     /// </summary>
     private bool IsCreditCacheStale(CachedMemberInfo cachedMember)
     {
+        if (_settings.CreditsCacheTtlMinutes <= 0)
+            return true;
+
         if (cachedMember.CreditsLastSyncTimestamp <= 0)
             return true;
 

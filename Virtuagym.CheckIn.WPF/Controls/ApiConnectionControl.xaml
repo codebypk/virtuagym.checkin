@@ -130,7 +130,7 @@
                     <!-- Credits-Cache TTL -->
                     <TextBlock x:Name="lblCreditsCacheTtl" Grid.Row="6" Grid.Column="0" Text="Credits-Cache TTL (Min):" VerticalAlignment="Center" Margin="0,5"/>
                     <TextBox x:Name="txtCreditsCacheTtlMinutes" Grid.Row="6" Grid.Column="1" Margin="0,5" Width="80" HorizontalAlignment="Left"
-                             ToolTip="Wie lange gecachte Credits g&#252;ltig bleiben (in Minuten). Standard: 60."/>
+                             ToolTip="Wie lange gecachte Credits g&#252;ltig bleiben (in Minuten). Standard: 60. | bei 0 deaktiviert"/>
 
                     <TextBlock x:Name="txtCacheSyncStatus" Grid.Row="7" Grid.Column="0" Grid.ColumnSpan="2" 
                                Foreground="Gray" FontSize="12" Margin="0,5" TextWrapping="Wrap"/>

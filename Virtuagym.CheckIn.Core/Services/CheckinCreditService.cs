@@ -35,13 +35,16 @@ public class CheckinCreditService
     /// </summary>
     public async Task RefreshIfStaleAsync(CachedMemberInfo cachedMember, string serviceId, int clubId, string checkinKey, string displayName)
     {
-        int ttlMinutes = Math.Max(1, _settings.CreditsCacheTtlMinutes);
+        int configuredTtlMinutes = _settings.CreditsCacheTtlMinutes;
+        int ttlMinutes = Math.Max(1, configuredTtlMinutes);
         long nowTs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         long ttlMs = ttlMinutes * 60L * 1000L;
 
         var cachedCreditBeforeFetch = cachedMember.GetCreditsForService(serviceId);
         bool hasCachedCredit = cachedCreditBeforeFetch != null;
-        bool creditsFresh = cachedMember.CreditsLastSyncTimestamp > 0
+        bool alwaysRefresh = configuredTtlMinutes <= 0;
+        bool creditsFresh = !alwaysRefresh
+            && cachedMember.CreditsLastSyncTimestamp > 0
             && (nowTs - cachedMember.CreditsLastSyncTimestamp) <= ttlMs;
 
         if (hasCachedCredit && creditsFresh)
