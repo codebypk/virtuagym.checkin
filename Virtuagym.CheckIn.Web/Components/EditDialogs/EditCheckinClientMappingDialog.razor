@@ -616,7 +616,7 @@
         try
         {
             using var client = new Jablotron.API.Services.JablotronCloudService(
-                SettingsOptions.Value.JablotronApiUrl, SettingsOptions.Value.JablotronApiUsername, SettingsOptions.Value.JablotronApiPassword);
+                SettingsOptions.Value.JablotronApiUrl, SettingsOptions.Value.JablotronApiUsername, SettingsOptions.Value.JablotronApiPassword, SettingsOptions.Value.JablotronApiPinCode);
             client.PerformLogin();
 
             int? serviceId = int.TryParse(gate.ServiceId, out var sid) && sid > 0 ? sid : null;

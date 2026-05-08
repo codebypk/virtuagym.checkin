@@ -100,7 +100,8 @@ namespace Virtuagym.CheckIn.WPF.Controls
                 using (var client = new JablotronCloudService(
                     txtJablotronApiUrl.Text,
                     txtJablotronApiUsername.Text,
-                    txtJablotronApiPassword.Password))
+                    txtJablotronApiPassword.Password,
+                    txtJablotronApiPinCode.Password))
                 {
                     client.PerformLogin();
                     var services = client.GetServices();
@@ -134,7 +135,8 @@ namespace Virtuagym.CheckIn.WPF.Controls
                 using (var client = new JablotronCloudService(
                     txtJablotronApiUrl.Text,
                     txtJablotronApiUsername.Text,
-                    txtJablotronApiPassword.Password))
+                    txtJablotronApiPassword.Password,
+                    txtJablotronApiPinCode.Password))
                 {
                     client.PerformLogin();
                     var services = client.GetServices();
@@ -175,7 +177,8 @@ namespace Virtuagym.CheckIn.WPF.Controls
                 using (var client = new JablotronCloudService(
                     txtJablotronApiUrl.Text,
                     txtJablotronApiUsername.Text,
-                    txtJablotronApiPassword.Password))
+                    txtJablotronApiPassword.Password,
+                    txtJablotronApiPinCode.Password))
                 {
                     client.PerformLogin();
                     var gatesData = client.GetProgrammableGates();

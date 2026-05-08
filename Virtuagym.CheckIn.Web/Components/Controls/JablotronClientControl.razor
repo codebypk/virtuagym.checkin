@@ -210,7 +210,8 @@
                 using var client = new JablotronCloudService(
                     _settings.JablotronApiUrl,
                     _settings.JablotronApiUsername,
-                    _settings.JablotronApiPassword);
+                    _settings.JablotronApiPassword,
+                    _settings.JablotronApiPinCode);
                 client.PerformLogin();
                 var services = client.GetServices();
                 _testResult = $"Verbindung erfolgreich. {services.Count} Service(s) gefunden.";
@@ -236,7 +237,8 @@
                 using var client = new JablotronCloudService(
                     _settings.JablotronApiUrl,
                     _settings.JablotronApiUsername,
-                    _settings.JablotronApiPassword);
+                    _settings.JablotronApiPassword,
+                    _settings.JablotronApiPinCode);
                 client.PerformLogin();
                 var services = client.GetServices();
 
@@ -270,7 +272,8 @@
                 using var client = new JablotronCloudService(
                     _settings.JablotronApiUrl,
                     _settings.JablotronApiUsername,
-                    _settings.JablotronApiPassword);
+                    _settings.JablotronApiPassword,
+                    _settings.JablotronApiPinCode);
                 client.PerformLogin();
                 var gatesData = client.GetProgrammableGates();
 

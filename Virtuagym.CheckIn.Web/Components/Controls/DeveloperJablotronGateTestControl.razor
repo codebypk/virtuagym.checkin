@@ -126,7 +126,8 @@
                 using var client = new JablotronCloudService(
                     settings.JablotronApiUrl,
                     settings.JablotronApiUsername,
-                    settings.JablotronApiPassword);
+                    settings.JablotronApiPassword,
+                    settings.JablotronApiPinCode);
                 client.PerformLogin();
 
                 int? serviceId = null;

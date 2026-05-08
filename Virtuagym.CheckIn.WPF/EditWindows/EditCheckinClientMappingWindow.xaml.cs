@@ -757,7 +757,8 @@ namespace Virtuagym.CheckIn.WPF
                 using (var client = new JablotronCloudService(
                     Settings.Default.JablotronApiUrl,
                     Settings.Default.JablotronApiUsername,
-                    Settings.Default.JablotronApiPassword))
+                    Settings.Default.JablotronApiPassword,
+                    Settings.Default.JablotronApiPinCode))
                 {
                     client.PerformLogin();
 
