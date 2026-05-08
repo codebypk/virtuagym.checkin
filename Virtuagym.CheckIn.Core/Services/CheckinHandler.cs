@@ -218,8 +218,7 @@ public class CheckinHandler
 
         void OnHardwareError(string errorMessage)
         {
-            _logger.WriteToLog($"[{displayName}] {errorMessage}", Constants.LogWarning);
-            _soundPlayer.Play(_settings.SoundCheckinError);
+            _logger.WriteToLog($"[{displayName}] Hardware trigger failed after successful check-in: {errorMessage}", Constants.LogWarning);
             _welcomeDisplay?.ShowHardwareError(errorMessage, displayName);
         }
 

@@ -1,6 +1,7 @@
 using Hardware.Services;
 using Jablotron.API.Services;
 using System;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,7 +9,6 @@ using Virtuagym.API;
 using Virtuagym.CheckIn.Core.Abstractions;
 using Virtuagym.CheckIn.Core.Helper;
 using Virtuagym.CheckIn.Core.Models;
-using static System.Collections.Specialized.BitVector32;
 
 namespace Virtuagym.CheckIn.Core.Services;
 
@@ -22,8 +22,8 @@ public class CheckinHardwareTriggerService
     private readonly CheckinClientMapping _mapping;
     private readonly IAppSettings _settings;
 
-    private static readonly SemaphoreSlim _gateSemaphore = new(1, 1);
-    private static volatile Task _activeGateTask = Task.CompletedTask;
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> _gateSemaphores = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<Guid, Task> _runningGateTasks = new();
     private static JablotronCloudServiceFactory? _jablotronFactory;
     private static readonly object _factoryLock = new();
 
@@ -54,18 +54,19 @@ public class CheckinHardwareTriggerService
     }
 
     /// <summary>
-    /// Waits for a running PG gate cycle (ON → delay → OFF) to complete.
+    /// Waits for currently running PG gate cycles (ON → delay → OFF) to complete.
     /// </summary>
     public static async Task WaitForPendingGateAsync(TimeSpan? timeout = null)
     {
-        var task = _activeGateTask;
-        if (task == null || task.IsCompleted)
+        var tasks = _runningGateTasks.Values.Where(t => !t.IsCompleted).ToArray();
+        if (tasks.Length == 0)
             return;
 
+        var allTasks = Task.WhenAll(tasks);
         if (timeout.HasValue)
-            await Task.WhenAny(task, Task.Delay(timeout.Value));
+            await Task.WhenAny(allTasks, Task.Delay(timeout.Value));
         else
-            await task;
+            await allTasks;
     }
 
     public CheckinHardwareTriggerService(ILogWriter logger, CheckinClientMapping mapping, IAppSettings settings)
@@ -89,20 +90,30 @@ public class CheckinHardwareTriggerService
             return;
         }
 
-        _ = Task.Run(() =>
+        const int RelayRetryCount = 3;
+        const int RelayRetryDelayMs = 300;
+
+        _ = Task.Run(async () =>
         {
-            try
+            for (int attempt = 1; attempt <= RelayRetryCount; attempt++)
             {
-                _logger.WriteToLog($"[{displayName}] {L.T("Log_RelayTriggered")}: {_mapping.RelayComPort} #{_mapping.RelayNumber}");
-                var relay = new RelayController(new HardwareLoggerAdapter(_logger));
-                relay.CycleRelay(_mapping.RelayComPort, _mapping.RelayNumber, _mapping.RelayBaudRate, _mapping.RelayTriggerTime);
+                try
+                {
+                    _logger.WriteToLog($"[{displayName}] {L.T("Log_RelayTriggered")}: {_mapping.RelayComPort} #{_mapping.RelayNumber} (attempt {attempt}/{RelayRetryCount})");
+                    var relay = new RelayController(new HardwareLoggerAdapter(_logger));
+                    relay.CycleRelay(_mapping.RelayComPort, _mapping.RelayNumber, _mapping.RelayBaudRate, _mapping.RelayTriggerTime);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logger.WriteToLog($"[{displayName}] Relay error (attempt {attempt}/{RelayRetryCount}): {ex.Message}", Constants.LogWarning);
+                    if (attempt < RelayRetryCount)
+                        await Task.Delay(RelayRetryDelayMs);
+                }
             }
-            catch (Exception ex)
-            {
-                _logger.WriteToLog($"[{displayName}] Relay error: {ex.Message}", Constants.LogWarning);
-                if (_mapping.RelayShowErrorOnDisplay)
-                    onError?.Invoke(L.T("Msg_TriggerRelayFailed"));
-            }
+
+            if (_mapping.RelayShowErrorOnDisplay)
+                onError?.Invoke(L.T("Msg_TriggerRelayFailed"));
         });
     }
 
@@ -129,9 +140,12 @@ public class CheckinHardwareTriggerService
         string condServiceId = _mapping.PgConditionGateServiceId;
         string condGateName = _mapping.PgConditionGateName ?? condComponentId;
 
+        var semaphore = _gateSemaphores.GetOrAdd(componentId, _ => new SemaphoreSlim(1, 1));
+        var taskId = Guid.NewGuid();
+
         var task = Task.Run(async () =>
         {
-            await _gateSemaphore.WaitAsync(cancellationToken);
+            await semaphore.WaitAsync(cancellationToken);
             try
             {
                 var client = GetOrCreateFactory().GetClient();
@@ -239,17 +253,19 @@ public class CheckinHardwareTriggerService
             }
             finally
             {
-                _gateSemaphore.Release();
+                semaphore.Release();
             }
         }, cancellationToken);
 
+        _runningGateTasks[taskId] = task;
+
         task.ContinueWith(t =>
         {
+            _runningGateTasks.TryRemove(taskId, out _);
+
             if (t.Exception != null)
                 _logger.WriteToLog($"[{displayName}] {L.T("Log_PgGateUnobservedError")}: {t.Exception.GetBaseException().Message}", Constants.LogError);
-        }, TaskContinuationOptions.OnlyOnFaulted);
-
-        _activeGateTask = task;
+        }, TaskScheduler.Default);
     }
 
     private async Task<bool> SendGateCommandWithRetryAsync(
