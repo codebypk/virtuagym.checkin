@@ -22,11 +22,14 @@ namespace Hardware.Models
         /// <summary>Beep-Befehl als Leerzeichen-separierter Hex-String.</summary>
         public string BeepCommand { get; set; }
 
-        /// <summary>ReadCommand als Byte-Array (lazy parsed).</summary>
-        public byte[] ReadCommandBytes => ParseHex(ReadCommand);
+        private byte[]? _readCommandBytes;
+        private byte[]? _beepCommandBytes;
 
-        /// <summary>BeepCommand als Byte-Array (lazy parsed).</summary>
-        public byte[] BeepCommandBytes => ParseHex(BeepCommand);
+        /// <summary>ReadCommand als Byte-Array (einmalig geparst und gecacht).</summary>
+        public byte[] ReadCommandBytes => _readCommandBytes ??= ParseHex(ReadCommand);
+
+        /// <summary>BeepCommand als Byte-Array (einmalig geparst und gecacht).</summary>
+        public byte[] BeepCommandBytes => _beepCommandBytes ??= ParseHex(BeepCommand);
 
         private static byte[] ParseHex(string hex)
         {

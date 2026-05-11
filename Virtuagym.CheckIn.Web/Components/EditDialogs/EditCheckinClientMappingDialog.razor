@@ -5,7 +5,6 @@
 @using Virtuagym.CheckIn.Core.Services
 @using Hardware.Models
 @using Hardware.Services
-@using HidLibrary
 @using System.IO.Ports
 @using System.Text.RegularExpressions
 @using OpenCvSharp
@@ -471,6 +470,8 @@
     [Parameter] public EventCallback OnCancel { get; set; }
     [Parameter] public EventCallback OnRefreshDevices { get; set; }
 
+    private readonly Hardware.Interfaces.IHidDeviceService _hidDeviceService = new Hardware.Services.HidSharpDeviceService();
+
     private string _tab = "general";
 
     // General tab state
@@ -676,63 +677,84 @@
         {
             var result = await Task.Run(() =>
             {
-                var hidDevices = HidDevices.Enumerate();
-                HidDevice targetDevice = null;
+                var hidDevices = _hidDeviceService.GetDevices();
+                Hardware.Models.HidDeviceInfo targetDeviceInfo = null;
 
                 foreach (var device in hidDevices)
                 {
                     string escapedPattern = Regex.Escape(selectedDeviceId).Replace(Regex.Escape("&8"), "[#&]8");
                     if (Regex.IsMatch(device.DevicePath, escapedPattern, RegexOptions.IgnoreCase))
                     {
-                        targetDevice = device;
+                        targetDeviceInfo = device;
                         break;
                     }
                 }
 
-                if (targetDevice == null)
+                if (targetDeviceInfo == null)
                     return ("red", L.T("Web_EditMapping_DeviceNotFound"));
 
-                targetDevice.OpenDevice();
-                if (!targetDevice.IsConnected)
-                {
-                    targetDevice.CloseDevice();
+                var hidDevice = HidSharp.DeviceList.Local
+                    .GetHidDevices()
+                    .FirstOrDefault(d => string.Equals(d.DevicePath, targetDeviceInfo.DevicePath, StringComparison.OrdinalIgnoreCase));
+
+                if (hidDevice == null)
+                    return ("red", L.T("Web_EditMapping_DeviceNotFound"));
+
+                if (!hidDevice.TryOpen(out HidSharp.HidStream stream))
                     return ("red", L.T("Web_EditMapping_DeviceOpenFailed"));
-                }
 
-                bool writeSuccess = targetDevice.Write(command);
-
-                if (commandName == "Read")
+                using (stream)
                 {
-                    var report = targetDevice.Read(3000);
-                    targetDevice.CloseDevice();
+                    stream.WriteTimeout = 500;
 
-                    if (report.Status == HidDeviceData.ReadStatus.Success)
+                    int outputLen = Math.Max(hidDevice.GetMaxOutputReportLength(), command.Length);
+                    byte[] report = new byte[outputLen > 0 ? outputLen : command.Length];
+                    Buffer.BlockCopy(command, 0, report, 0, Math.Min(command.Length, report.Length));
+
+                    bool writeSuccess;
+                    try { stream.Write(report); writeSuccess = true; }
+                    catch { writeSuccess = false; }
+
+                    if (commandName == "Read")
                     {
-                        var card = new Card(report.Data);
-                        if (card.IsValidTag)
+                        stream.ReadTimeout = 3000;
+                        byte[] inputReport = new byte[Math.Max(hidDevice.GetMaxInputReportLength(), 64)];
+                        try
                         {
+                            int bytesRead = stream.Read(inputReport);
+                            if (bytesRead > 0)
+                            {
+                                if (bytesRead != inputReport.Length)
+                                    Array.Resize(ref inputReport, bytesRead);
+
+                                var card = new Card(inputReport);
+                                if (card.IsValidTag)
+                                {
 #pragma warning disable CS0618
-                            string info = L.T("Web_EditMapping_CardDetected") + "\n"
-                                + "  " + L.T("Web_EditMapping_UidHex") + "              " + card.UidHex + "\n"
-                                + "  " + L.T("Web_EditMapping_Standard10Digit") + "  " + card.GetCardId(CardIdMode.Lower3Bytes) + "\n"
-                                + "  " + L.T("Web_EditMapping_MifareClassic") + "       " + card.GetCardId(CardIdMode.Lower4Bytes) + "\n"
-                                + "  " + L.T("Web_EditMapping_FullUidDecimal") + "    " + card.GetCardId(CardIdMode.FullDecimal) + "\n"
-                                + "  " + L.T("Web_EditMapping_FullUidHex") + "        " + card.GetCardId(CardIdMode.FullHex) + "\n"
-                                + "  " + L.T("Web_EditMapping_UidLegacy") + "           " + card.UidLegacy;
+                                    string info = L.T("Web_EditMapping_CardDetected") + "\n"
+                                        + "  " + L.T("Web_EditMapping_UidHex") + "              " + card.UidHex + "\n"
+                                        + "  " + L.T("Web_EditMapping_Standard10Digit") + "  " + card.GetCardId(CardIdMode.Lower3Bytes) + "\n"
+                                        + "  " + L.T("Web_EditMapping_MifareClassic") + "       " + card.GetCardId(CardIdMode.Lower4Bytes) + "\n"
+                                        + "  " + L.T("Web_EditMapping_FullUidDecimal") + "    " + card.GetCardId(CardIdMode.FullDecimal) + "\n"
+                                        + "  " + L.T("Web_EditMapping_FullUidHex") + "        " + card.GetCardId(CardIdMode.FullHex) + "\n"
+                                        + "  " + L.T("Web_EditMapping_UidLegacy") + "           " + card.UidLegacy;
 #pragma warning restore CS0618
-                            return ("green", info);
+                                    return ("green", info);
+                                }
+                                string hexData = BitConverter.ToString(inputReport);
+                                return ("green", string.Format(L.T("Web_EditMapping_Response"), hexData));
+                            }
                         }
-                        string hexData = BitConverter.ToString(report.Data);
-                        return ("green", string.Format(L.T("Web_EditMapping_Response"), hexData));
+                        catch (TimeoutException) { }
+                        catch (System.IO.IOException) { }
+                        return ("orange", L.T("Web_EditMapping_NoCardDetected"));
                     }
-                    return ("orange", L.T("Web_EditMapping_NoCardDetected"));
-                }
-                else
-                {
-                    targetDevice.CloseDevice();
-                    return writeSuccess
-                        ? ("green", L.T("Web_EditMapping_BeepSuccess"))
-                        : ("red", L.T("Web_EditMapping_BeepFailed"));
+                    else
+                    {
+                        return writeSuccess
+                            ? ("green", L.T("Web_EditMapping_BeepSuccess"))
+                            : ("red", L.T("Web_EditMapping_BeepFailed"));
+                    }
                 }
             });
 

@@ -55,7 +55,12 @@ public sealed class AppSettings : IAppSettings
     public string ApiMsgMemberNotActive { get; set; } = "Das Mitglied {0} ist nicht aktiv.";
 
     // --- Hardware ---
-    public int RepeatTimeInMs { get; set; } = 400;
+    /// <summary>
+    /// Idle delay between poll cycles when no card is present (milliseconds).
+    /// With a fixed ReadTimeout of 50 ms, the worst-case detection latency is
+    /// ReadTimeout + RepeatTimeInMs. Default 75 ms → ~125 ms worst case (CCID-comparable).
+    /// </summary>
+    public int RepeatTimeInMs { get; set; } = 75;
     public int DuplicateTimeoutSeconds { get; set; } = 5;
     public long DefaultDoubleScanThresholdMs { get; set; } = 60000;
     /// <summary>

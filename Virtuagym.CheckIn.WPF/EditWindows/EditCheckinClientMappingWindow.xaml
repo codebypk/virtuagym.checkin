@@ -52,7 +52,7 @@
 
                             <TextBlock x:Name="lblDeviceId" Grid.Row="2" Grid.Column="0" Text="USB Device:" VerticalAlignment="Center" Margin="0,5"/>
                             <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,5">
-                                <ComboBox x:Name="cmbMappingDeviceID" IsEditable="True" MinWidth="300"
+                                <ComboBox x:Name="cmbMappingDeviceID" IsEditable="True" Width="330"
                                           ToolTip="USB-Device-ID des USB-Readers."/>
                                 <Button x:Name="btnRefreshDevices" Content="🔄" Width="30" Margin="4,0,0,0"
                                         ToolTip="Geräteliste aktualisieren" Click="btnRefreshDevices_Click"/>

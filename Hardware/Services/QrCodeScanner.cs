@@ -206,6 +206,10 @@ namespace Hardware.Services
                     {
                         ProcessQrCode(result.Text);
                     }
+                    else
+                    {
+                        MarkQrAsRemovedIfExpired();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -222,9 +226,13 @@ namespace Hardware.Services
             lock (_qrProcessLock)
             {
                 long nowTicks = Stopwatch.GetTimestamp();
-                long duplicateTimeoutTicks = (long)(_duplicateTimeoutSeconds * Stopwatch.Frequency);
-                if (qrCode == _lastQrCode && (nowTicks - _lastQrCodeTicks) < duplicateTimeoutTicks)
+
+                // Same code still present -> keep alive timestamp and suppress duplicate event.
+                if (qrCode == _lastQrCode)
+                {
+                    _lastQrCodeTicks = nowTicks;
                     return;
+                }
 
                 _lastQrCode = qrCode;
                 _lastQrCodeTicks = nowTicks;
@@ -236,6 +244,24 @@ namespace Hardware.Services
                 _logger.Log($"[{readerName}] QR-Code read: '{qrCode}'");
 
             QrCodeRead?.Invoke(this, new QrCodeReadEventArgs(qrCode, readerName));
+        }
+
+        private void MarkQrAsRemovedIfExpired()
+        {
+            lock (_qrProcessLock)
+            {
+                if (string.IsNullOrEmpty(_lastQrCode))
+                    return;
+
+                long nowTicks = Stopwatch.GetTimestamp();
+                long duplicateTimeoutTicks = (long)(Math.Max(_duplicateTimeoutSeconds, 0.05) * Stopwatch.Frequency);
+
+                if ((nowTicks - _lastQrCodeTicks) >= duplicateTimeoutTicks)
+                {
+                    _lastQrCode = string.Empty;
+                    _lastQrCodeTicks = 0;
+                }
+            }
         }
 
         /// <summary>Kamera-Index dieses Scanners.</summary>

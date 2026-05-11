@@ -1,22 +1,22 @@
-using HidLibrary;
+using Hardware.Interfaces;
+using Hardware.Models;
+using Hardware.Services;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Text;
-using Virtuagym.API.Serialization;
 using System.Windows;
 using System.Windows.Controls;
-using Virtuagym.CheckIn.Core.Services;
-using Hardware.Models;
-using Hardware.Services;
+using Virtuagym.API.Serialization;
 using Virtuagym.CheckIn.Core.Models;
+using Virtuagym.CheckIn.Core.Services;
 using Virtuagym.CheckIn.WPF.Properties;
 
 namespace Virtuagym.CheckIn.WPF.Controls
 {
     public partial class CheckinMappingsControl : UserControl
     {
+        private readonly IHidDeviceService _hidDeviceService = new HidSharpDeviceService();
         private ObservableCollection<CheckinClientMapping> _checkinClientMappings;
         private List<HidDeviceInfo> _availableHidDevices;
 
@@ -91,31 +91,17 @@ namespace Virtuagym.CheckIn.WPF.Controls
         private void RefreshAvailableDevices()
         {
             _availableHidDevices = new List<HidDeviceInfo>();
-            var hidDevices = HidDevices.Enumerate();
+            var hidDevices = _hidDeviceService.GetDevices();
             foreach (var device in hidDevices)
             {
                 string deviceId = ExtractDeviceId(device.DevicePath);
                 if (string.IsNullOrEmpty(deviceId))
                     continue;
 
-                string manufacturer = "";
-                string product = "";
-                short usagePage = 0;
-                short usage = 0;
-                try
-                {
-                    device.OpenDevice();
-                    if (device.ReadManufacturer(out byte[] manufacturerData))
-                        manufacturer = Encoding.Unicode.GetString(manufacturerData).TrimEnd('\0');
-                    if (device.ReadProduct(out byte[] productData))
-                        product = Encoding.Unicode.GetString(productData).TrimEnd('\0');
-                    usagePage = device.Capabilities.UsagePage;
-                    usage = device.Capabilities.Usage;
-                    device.CloseDevice();
-                }
-                catch { /* Ger\u00e4t kann nicht ge\u00f6ffnet werden \u2192 ohne Details auflisten */ }
+                string manufacturer = device.Manufacturer?.Trim() ?? "";
+                string product = device.ProductName?.Trim() ?? "";
 
-                if (IsCommonNonRfidDevice(usagePage, usage, manufacturer, product, device.Description))
+                if (IsCommonNonRfidDevice(manufacturer, product, device.Description))
                     continue;
 
                 string displayName = BuildDisplayName(deviceId, manufacturer, product, device.Description);
@@ -124,25 +110,13 @@ namespace Virtuagym.CheckIn.WPF.Controls
                     DevicePath = device.DevicePath,
                     DeviceId = deviceId,
                     Manufacturer = manufacturer,
-                    Product = product,
-                    DisplayName = displayName
+                    Product = product
                 });
             }
         }
 
-        private static bool IsCommonNonRfidDevice(short usagePage, short usage, string manufacturer, string product, string description)
+        private static bool IsCommonNonRfidDevice(string manufacturer, string product, string description)
         {
-            // Maus (Generic Desktop, Usage 0x02)
-            if (usagePage == 0x01 && usage == 0x02) return true;
-            // Tastatur / Keypad (Generic Desktop, Usage 0x06 / 0x07)
-            if (usagePage == 0x01 && (usage == 0x06 || usage == 0x07)) return true;
-            // Joystick / Gamepad (Generic Desktop, Usage 0x04 / 0x05)
-            if (usagePage == 0x01 && (usage == 0x04 || usage == 0x05)) return true;
-            // Consumer Controls: Audio/Video-Steuerung, Multimedia-Tasten
-            if (usagePage == 0x0C) return true;
-            // Telefonie-Geräte
-            if (usagePage == 0x0B) return true;
-
             // Keyword-Filter auf Beschreibung, Hersteller und Produktname
             string combined = $"{manufacturer} {product} {description}".ToLowerInvariant();
             string[] excludeKeywords =

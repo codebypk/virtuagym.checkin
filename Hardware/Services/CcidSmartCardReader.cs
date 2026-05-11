@@ -286,12 +286,12 @@ namespace Hardware.Services
                         string uid = ReadCardUid(readerName);
                         if (!string.IsNullOrEmpty(uid))
                         {
-                            var duplicateTimeout = TimeSpan.FromSeconds(_duplicateTimeoutSeconds);
-                            bool isDuplicate = uid == _lastUid && (DateTime.Now - _lastUidTime) < duplicateTimeout;
+                            var duplicateTimeout = TimeSpan.FromSeconds(Math.Max(_duplicateTimeoutSeconds, 0.05));
+                            bool isDuplicate = uid == _lastUid && (DateTime.UtcNow - _lastUidTime) < duplicateTimeout;
                             if (!isDuplicate)
                             {
                                 _lastUid = uid;
-                                _lastUidTime = DateTime.Now;
+                                _lastUidTime = DateTime.UtcNow;
                                 _logger.Log($"CCID Reader: Card read, UID '{uid}'", HardwareLogLevel.Success);
 
                                 var card = new Card(uid);
@@ -300,7 +300,7 @@ namespace Hardware.Services
                             }
                             else if (_debugMode)
                             {
-                                _logger.Log($"CCID: Card already scanned (duplicate protection: {duplicateTimeout.TotalSeconds}s)", HardwareLogLevel.Warning);
+                                _logger.Log($"CCID: Card already scanned (re-arm timeout: {duplicateTimeout.TotalSeconds:0.###}s)", HardwareLogLevel.Warning);
                             }
                         }
 
@@ -315,6 +315,12 @@ namespace Hardware.Services
                             readerName = await TryReconnectAsync(ct);
                             if (readerName == null) break;
                             continue;
+                        }
+
+                        if (result == SCARD_S_SUCCESS && (states[0].dwEventState & SCARD_STATE_EMPTY) != 0)
+                        {
+                            // Start re-arm window after physical card removal.
+                            _lastUidTime = DateTime.UtcNow;
                         }
                     }
 

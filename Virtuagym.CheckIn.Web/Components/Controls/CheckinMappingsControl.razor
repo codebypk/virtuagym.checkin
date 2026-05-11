@@ -1,12 +1,11 @@
-@using Microsoft.Extensions.Options
-@using Virtuagym.CheckIn.Web.Models
-@using Virtuagym.CheckIn.Web.Components.EditDialogs
-@using Virtuagym.CheckIn.Core.Models
-@using Virtuagym.API.Serialization
+@using Hardware.Interfaces
 @using Hardware.Models
 @using Hardware.Services
-@using HidLibrary
-@using System.Text
+@using Microsoft.Extensions.Options
+@using Virtuagym.API.Serialization
+@using Virtuagym.CheckIn.Core.Models
+@using Virtuagym.CheckIn.Web.Components.EditDialogs
+@using Virtuagym.CheckIn.Web.Models
 @inject IOptions<AppSettings> SettingsOptions
 
 <div class="control-panel">
@@ -83,6 +82,8 @@
     private CheckinClientMapping? _selectedMapping;
     private List<HidDeviceInfo> _availableHidDevices = new();
     private HashSet<string> _usedDeviceIds = new(StringComparer.OrdinalIgnoreCase);
+    private readonly IHidDeviceService _hidDeviceService = new HidSharpDeviceService();
+
 
     // Editor state
     private bool _showEditor;
@@ -129,34 +130,21 @@
         {
             await Task.Run(() =>
             {
-                var hidDevices = HidDevices.Enumerate();
+                var hidDevices = _hidDeviceService.GetDevices();
                 foreach (var device in hidDevices)
                 {
                     string deviceId = ExtractDeviceId(device.DevicePath);
                     if (string.IsNullOrEmpty(deviceId)) continue;
 
-                    string manufacturer = "";
-                    string product = "";
-                    short usagePage = 0, usage = 0;
-                    try
-                    {
-                        device.OpenDevice();
-                        if (device.ReadManufacturer(out byte[] mData))
-                            manufacturer = Encoding.Unicode.GetString(mData).TrimEnd('\0');
-                        if (device.ReadProduct(out byte[] pData))
-                            product = Encoding.Unicode.GetString(pData).TrimEnd('\0');
-                        usagePage = device.Capabilities.UsagePage;
-                        usage = device.Capabilities.Usage;
-                        device.CloseDevice();
-                    }
-                    catch { }
+                    string manufacturer = device.Manufacturer?.Trim() ?? "";
+                    string product = device.ProductName?.Trim() ?? "";
 
-                    if (IsCommonNonRfidDevice(usagePage, usage, manufacturer, product, device.Description))
+                    if (IsCommonNonRfidDevice(manufacturer, product, device.Description))
                         continue;
 
                     var parts = new List<string>();
-                    if (!string.IsNullOrWhiteSpace(manufacturer)) parts.Add(manufacturer.Trim());
-                    if (!string.IsNullOrWhiteSpace(product)) parts.Add(product.Trim());
+                    if (!string.IsNullOrWhiteSpace(manufacturer)) parts.Add(manufacturer);
+                    if (!string.IsNullOrWhiteSpace(product)) parts.Add(product);
                     if (parts.Count == 0 && !string.IsNullOrWhiteSpace(device.Description)) parts.Add(device.Description);
                     if (parts.Count == 0) parts.Add("HID-Gerät");
                     string displayName = $"{deviceId} - {string.Join(" / ", parts)}";
@@ -170,8 +158,7 @@
                         DevicePath = device.DevicePath,
                         DeviceId = deviceId,
                         Manufacturer = manufacturer,
-                        Product = product,
-                        DisplayName = displayName
+                        Product = product
                     });
                 }
             });
@@ -303,14 +290,8 @@
         return null;
     }
 
-    private static bool IsCommonNonRfidDevice(short usagePage, short usage, string manufacturer, string product, string description)
+    private static bool IsCommonNonRfidDevice(string manufacturer, string product, string description)
     {
-        if (usagePage == 0x01 && usage == 0x02) return true; // Mouse
-        if (usagePage == 0x01 && (usage == 0x06 || usage == 0x07)) return true; // Keyboard
-        if (usagePage == 0x01 && (usage == 0x04 || usage == 0x05)) return true; // Joystick/Gamepad
-        if (usagePage == 0x0C) return true; // Consumer
-        if (usagePage == 0x0B) return true; // Telephony
-
         string combined = $"{manufacturer} {product} {description}".ToLowerInvariant();
         string[] excludeKeywords = { "keyboard", "tastatur", "mouse", "maus", "audio", "speaker", "headset",
             "headphone", "microphone", "video", "webcam", "camera", "printer", "drucker", "storage", "disk", "drive" };

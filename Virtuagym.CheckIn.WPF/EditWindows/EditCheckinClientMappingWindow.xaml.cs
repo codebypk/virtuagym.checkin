@@ -3,7 +3,7 @@ using Hardware.Events;
 using Hardware.Interfaces;
 using Hardware.Models;
 using Hardware.Services;
-using HidLibrary;
+using HidSharp;
 using Jablotron.API.Services;
 using System;
 using System.Collections.Generic;
@@ -47,6 +47,7 @@ namespace Virtuagym.CheckIn.WPF
         private QrCodeScanner _testScanner;
         private List<PgGateEntry> _pgGates = new List<PgGateEntry>();
         private int _pendingCameraIndex = -1;
+        private readonly IHidDeviceService _hidDeviceService = new HidSharpDeviceService();
 
         public EditCheckinClientMappingWindow(CheckinClientMapping existing, string[] availableDeviceIds, HidDeviceInfo[] availableHidDevices = null)
         {
@@ -361,10 +362,10 @@ namespace Virtuagym.CheckIn.WPF
             }
 
             // Repeat time setzen
-            txtRepeatTimeMs.Text = mapping.RepeatTimeMs.HasValue ? mapping.RepeatTimeMs.Value.ToString() : "";
+            txtRepeatTimeMs.Text = mapping.RepeatTimeMs.HasValue ? mapping.RepeatTimeMs.Value.ToString() : Settings.Default.RepaitTimeInMs.ToString();
 
             // Leser-Entprellung setzen
-            txtDuplicateTimeoutSeconds.Text = mapping.DuplicateTimeoutSeconds.HasValue ? mapping.DuplicateTimeoutSeconds.Value.ToString() : "";
+            txtDuplicateTimeoutSeconds.Text = mapping.DuplicateTimeoutSeconds.HasValue ? mapping.DuplicateTimeoutSeconds.Value.ToString() : Settings.Default.DuplicateTimeoutSeconds.ToString();
 
             // HID-Profil setzen
             if (!string.IsNullOrWhiteSpace(mapping.HidProfile))
@@ -909,61 +910,82 @@ namespace Virtuagym.CheckIn.WPF
             {
                 string result = await Task.Run(() =>
                 {
-                    var hidDevices = HidDevices.Enumerate();
-                    HidDevice targetDevice = null;
+                    var hidDevices = _hidDeviceService.GetDevices();
+                    HidDeviceInfo targetDeviceInfo = null;
 
                     foreach (var device in hidDevices)
                     {
                         string escapedPattern = Regex.Escape(selectedDeviceId).Replace(Regex.Escape("&8"), "[#&]8");
                         if (Regex.IsMatch(device.DevicePath, escapedPattern, RegexOptions.IgnoreCase))
                         {
-                            targetDevice = device;
+                            targetDeviceInfo = device;
                             break;
                         }
                     }
 
-                    if (targetDevice == null)
+                    if (targetDeviceInfo == null)
                         return "ERROR|" + L.T("EditMapping_DeviceTest_DeviceNotFound");
 
-                    targetDevice.OpenDevice();
-                    if (!targetDevice.IsConnected)
-                    {
-                        targetDevice.CloseDevice();
+                    var hidDevice = HidSharp.DeviceList.Local
+                        .GetHidDevices()
+                        .FirstOrDefault(d => string.Equals(d.DevicePath, targetDeviceInfo.DevicePath, StringComparison.OrdinalIgnoreCase));
+
+                    if (hidDevice == null)
+                        return "ERROR|" + L.T("EditMapping_DeviceTest_DeviceNotFound");
+
+                    if (!hidDevice.TryOpen(out HidSharp.HidStream stream))
                         return "ERROR|" + L.T("EditMapping_DeviceTest_CannotOpen");
-                    }
 
-                    bool writeSuccess = targetDevice.Write(command);
-
-                    if (commandName == "Read")
+                    using (stream)
                     {
-                        var report = targetDevice.Read(3000);
-                        targetDevice.CloseDevice();
+                        stream.WriteTimeout = 500;
 
-                        if (report.Status == HidDeviceData.ReadStatus.Success)
+                        int outputLen = Math.Max(hidDevice.GetMaxOutputReportLength(), command.Length);
+                        byte[] report = new byte[outputLen > 0 ? outputLen : command.Length];
+                        Buffer.BlockCopy(command, 0, report, 0, Math.Min(command.Length, report.Length));
+
+                        bool writeSuccess;
+                        try { stream.Write(report); writeSuccess = true; }
+                        catch { writeSuccess = false; }
+
+                        if (commandName == "Read")
                         {
-                            var card = new Card(report.Data);
-                            if (card.IsValidTag)
+                            stream.ReadTimeout = 3000;
+                            byte[] inputReport = new byte[Math.Max(hidDevice.GetMaxInputReportLength(), 64)];
+                            try
                             {
+                                int bytesRead = stream.Read(inputReport);
+                                if (bytesRead > 0)
+                                {
+                                    if (bytesRead != inputReport.Length)
+                                        Array.Resize(ref inputReport, bytesRead);
+
+                                    var card = new Card(inputReport);
+                                    if (card.IsValidTag)
+                                    {
 #pragma warning disable CS0618 // Type or member is obsolete
-                                string info = L.T("EditMapping_DeviceTest_CardRead") + ":\n"
-                                    + "  UID Hex:              " + card.UidHex + "\n"
-                                    + "  Standard 10-stellig:  " + card.GetCardId(CardIdMode.Lower3Bytes) + "\n"
-                                    + "  MIFARE Classic:       " + card.GetCardId(CardIdMode.Lower4Bytes) + "\n"
-                                    + "  Volle UID Dezimal:    " + card.GetCardId(CardIdMode.FullDecimal) + "\n"
-                                    + "  Volle UID Hex:        " + card.GetCardId(CardIdMode.FullHex) + "\n"
-                                    + "  UID Legacy:           " + card.UidLegacy;
+                                        string info = L.T("EditMapping_DeviceTest_CardRead") + ":\n"
+                                            + "  UID Hex:              " + card.UidHex + "\n"
+                                            + "  Standard 10-stellig:  " + card.GetCardId(CardIdMode.Lower3Bytes) + "\n"
+                                            + "  MIFARE Classic:       " + card.GetCardId(CardIdMode.Lower4Bytes) + "\n"
+                                            + "  Volle UID Dezimal:    " + card.GetCardId(CardIdMode.FullDecimal) + "\n"
+                                            + "  Volle UID Hex:        " + card.GetCardId(CardIdMode.FullHex) + "\n"
+                                            + "  UID Legacy:           " + card.UidLegacy;
 #pragma warning restore CS0618 // Type or member is obsolete
-                                return "OK|" + info;
+                                        return "OK|" + info;
+                                    }
+                                    string hexData = BitConverter.ToString(inputReport);
+                                    return "OK|" + L.T("EditMapping_DeviceTest_Response") + ": " + hexData;
+                                }
                             }
-                            string hexData = BitConverter.ToString(report.Data);
-                            return "OK|" + L.T("EditMapping_DeviceTest_Response") + ": " + hexData;
+                            catch (System.TimeoutException) { }
+                            catch (System.IO.IOException) { }
+                            return "WARN|" + L.T("EditMapping_DeviceTest_NoCardDetected");
                         }
-                        return "WARN|" + L.T("EditMapping_DeviceTest_NoCardDetected");
-                    }
-                    else
-                    {
-                        targetDevice.CloseDevice();
-                        return writeSuccess ? "OK|" + L.T("EditMapping_DeviceTest_BeepSuccess") : "ERROR|" + L.T("EditMapping_DeviceTest_BeepFailed");
+                        else
+                        {
+                            return writeSuccess ? "OK|" + L.T("EditMapping_DeviceTest_BeepSuccess") : "ERROR|" + L.T("EditMapping_DeviceTest_BeepFailed");
+                        }
                     }
                 });
 

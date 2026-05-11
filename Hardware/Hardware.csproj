@@ -5,17 +5,15 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="HidSharp" Version="2.6.4" />
     <PackageReference Include="System.Drawing.Common" Version="11.0.0-preview.2.26159.112" />
     <PackageReference Include="System.IO.Ports" Version="11.0.0-preview.2.26159.112" />
-    <PackageReference Include="hidlibrary">
-      <Version>3.3.40</Version>
-    </PackageReference>
-    <PackageReference Include="OpenCvSharp4" Version="4.13.0.20260330" />
+    <PackageReference Include="OpenCvSharp4" Version="4.13.0.20260427" />
     <PackageReference Include="ZXing.Net" Version="0.16.11" />
     <PackageReference Include="ZXing.Net.Bindings.Windows.Compatibility" Version="0.16.14" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
-    <PackageReference Include="System.Management" Version="10.0.0-preview.3.25171.5" />
+    <PackageReference Include="System.Management" Version="10.0.7" />
   </ItemGroup>
 </Project>
